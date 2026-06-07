@@ -164,6 +164,14 @@ function sanitizeBody(body) {
   return sanitized;
 }
 
+function serializeAuditLog(log) {
+  if (!log) return null;
+  return {
+    ...log,
+    id: log.id.toString(),
+  };
+}
+
 async function queryAuditLogs(filters) {
   const {
     page = 1,
@@ -216,7 +224,7 @@ async function queryAuditLogs(filters) {
   ]);
 
   return {
-    list,
+    list: list.map(serializeAuditLog),
     total,
     page: parseInt(page),
     pageSize: parseInt(pageSize),
@@ -225,7 +233,8 @@ async function queryAuditLogs(filters) {
 }
 
 async function getAuditLogById(id) {
-  return prisma.auditLog.findUnique({ where: { id: BigInt(id) } });
+  const log = await prisma.auditLog.findUnique({ where: { id: BigInt(id) } });
+  return serializeAuditLog(log);
 }
 
 async function getAuditStats({ groupBy, startDate, endDate }) {

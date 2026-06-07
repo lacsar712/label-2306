@@ -1,81 +1,79 @@
 import axios from './axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
-
 export const notificationApi = {
   getTemplates: (params) => {
-    return axios.get(`${API_URL}/notifications/templates`, { params });
+    return axios.get('/notifications/templates', { params });
   },
 
   createTemplate: (data) => {
-    return axios.post(`${API_URL}/notifications/templates`, data);
+    return axios.post('/notifications/templates', data);
   },
 
   updateTemplate: (id, data) => {
-    return axios.put(`${API_URL}/notifications/templates/${id}`, data);
+    return axios.put(`/notifications/templates/${id}`, data);
   },
 
   deleteTemplate: (id) => {
-    return axios.delete(`${API_URL}/notifications/templates/${id}`);
+    return axios.delete(`/notifications/templates/${id}`);
   },
 
   getStats: () => {
-    return axios.get(`${API_URL}/notifications/stats`);
+    return axios.get('/notifications/stats');
   },
 
   getNotificationStats: (id) => {
-    return axios.get(`${API_URL}/notifications/${id}/stats`);
+    return axios.get(`/notifications/${id}/stats`);
   },
 
   getUnreadCount: () => {
-    return axios.get(`${API_URL}/notifications/mine/unread-count`);
+    return axios.get('/notifications/mine/unread-count');
   },
 
   getMyNotifications: (params) => {
-    return axios.get(`${API_URL}/notifications/mine`, { params });
+    return axios.get('/notifications/mine', { params });
   },
 
   markAsRead: (ids) => {
-    return axios.post(`${API_URL}/notifications/mine/read`, { ids });
+    return axios.post('/notifications/mine/read', { ids });
   },
 
   markAllAsRead: () => {
-    return axios.post(`${API_URL}/notifications/mine/read`, {});
+    return axios.post('/notifications/mine/read', {});
   },
 
   getNotifications: (params) => {
-    return axios.get(`${API_URL}/notifications`, { params });
+    return axios.get('/notifications', { params });
   },
 
   getNotification: (id) => {
-    return axios.get(`${API_URL}/notifications/${id}`);
+    return axios.get(`/notifications/${id}`);
   },
 
   createNotification: (data) => {
-    return axios.post(`${API_URL}/notifications`, data);
+    return axios.post('/notifications', data);
   },
 
   updateNotification: (id, data) => {
-    return axios.put(`${API_URL}/notifications/${id}`, data);
+    return axios.put(`/notifications/${id}`, data);
   },
 
   deleteNotification: (id) => {
-    return axios.delete(`${API_URL}/notifications/${id}`);
+    return axios.delete(`/notifications/${id}`);
   },
 
   sendNotification: (data) => {
-    return axios.post(`${API_URL}/notifications/send`, data);
+    return axios.post('/notifications/send', data);
   },
 
   archiveExpired: () => {
-    return axios.post(`${API_URL}/notifications/archive-expired`);
+    return axios.post('/notifications/archive-expired');
   },
 
   getUsers: () => {
-    return axios.get(`${API_URL}/users`);
+    return axios.get('/users');
   },
 
   getTags: () => {
-    return axios.get(`${API_URL}/tags`);
+    return axios.get('/tags');
   },
 };

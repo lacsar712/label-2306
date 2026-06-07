@@ -444,7 +444,7 @@ async function processExportTask(taskId) {
     }
 
     await new Promise((resolve, reject) => {
-      writeStream.end(err => (err ? reject(err) : resolve());
+      writeStream.end(err => (err ? reject(err) : resolve()));
     });
 
     const stats = fs.statSync(filePath);

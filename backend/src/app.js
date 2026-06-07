@@ -21,6 +21,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// 将空字符串查询参数视为未传，避免 Zod 枚举校验失败
+app.use((req, res, next) => {
+  if (req.query) {
+    for (const key of Object.keys(req.query)) {
+      if (req.query[key] === '') {
+        delete req.query[key];
+      }
+    }
+  }
+  next();
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/members', memberRoutes);
