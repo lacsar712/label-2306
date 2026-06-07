@@ -73,6 +73,16 @@ const router = createRouter({
           name: 'DataExport',
           component: () => import('../views/DataExportCenter.vue'),
         },
+        {
+          path: 'birthdays',
+          name: 'Birthdays',
+          component: () => import('../views/Birthdays.vue'),
+        },
+        {
+          path: 'birthdays/config',
+          name: 'BirthdayConfig',
+          component: () => import('../views/BirthdayConfig.vue'),
+        },
       ],
     },
   ],

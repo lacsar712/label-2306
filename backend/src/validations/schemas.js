@@ -7,6 +7,10 @@ const MemberSchema = z.object({
   level: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
   points: z.number().int().optional(),
+  birthday: z.number().int().optional().nullable(),
+  birthdayMonth: z.number().int().min(1).max(12).optional().nullable(),
+  birthdayDay: z.number().int().min(1).max(31).optional().nullable(),
+  calendarType: z.enum(['SOLAR', 'LUNAR']).optional(),
 });
 
 const PointsUpdateSchema = z.object({
@@ -268,6 +272,56 @@ const ExportFieldConfigUpdateSchema = z.object({
   userFields: z.array(z.string()),
 });
 
+const BirthdayWishTemplateSchema = z.object({
+  level: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']),
+  title: z.string().min(1).max(200),
+  content: z.string().min(1),
+  isEnabled: z.boolean().optional().default(true),
+});
+
+const BirthdayWishTemplateUpdateSchema = BirthdayWishTemplateSchema.partial();
+
+const BirthdayPointsRuleSchema = z.object({
+  level: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']),
+  points: z.number().int().nonnegative(),
+  preventDuplicate: z.boolean().optional().default(true),
+  isEnabled: z.boolean().optional().default(true),
+});
+
+const BirthdayPointsRuleUpdateSchema = BirthdayPointsRuleSchema.partial();
+
+const BirthdayCareConfigSchema = z.object({
+  remindDaysBefore: z.number().int().min(0).max(30).optional().default(3),
+  autoSendEnabled: z.boolean().optional().default(false),
+  defaultChannel: z.enum(['SMS', 'WECHAT', 'EMAIL', 'IN_APP', 'MANUAL']).optional().default('SMS'),
+});
+
+const BirthdayCareExecuteSchema = z.object({
+  memberIds: z.array(z.number().int()).optional(),
+  channel: z.enum(['SMS', 'WECHAT', 'EMAIL', 'IN_APP', 'MANUAL']).optional(),
+  sendWish: z.boolean().optional().default(true),
+  givePoints: z.boolean().optional().default(true),
+  remark: z.string().optional().nullable(),
+});
+
+const BirthdayCareRecordQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+  memberId: z.coerce.number().int().optional(),
+  birthdayYear: z.coerce.number().int().optional(),
+  channel: z.enum(['SMS', 'WECHAT', 'EMAIL', 'IN_APP', 'MANUAL']).optional(),
+  result: z.enum(['SUCCESS', 'FAILED', 'PARTIAL', 'SKIPPED']).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+const BirthdayQuerySchema = z.object({
+  scope: z.enum(['TODAY', 'THIS_WEEK', 'THIS_MONTH', 'NEXT_MONTH', 'CALENDAR']).optional().default('THIS_MONTH'),
+  year: z.coerce.number().int().optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  level: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']).optional(),
+});
+
 module.exports = {
   MemberSchema,
   PointsUpdateSchema,
@@ -305,4 +359,12 @@ module.exports = {
   ExportTaskCreateSchema,
   ExportTaskQuerySchema,
   ExportFieldConfigUpdateSchema,
+  BirthdayWishTemplateSchema,
+  BirthdayWishTemplateUpdateSchema,
+  BirthdayPointsRuleSchema,
+  BirthdayPointsRuleUpdateSchema,
+  BirthdayCareConfigSchema,
+  BirthdayCareExecuteSchema,
+  BirthdayCareRecordQuerySchema,
+  BirthdayQuerySchema,
 };

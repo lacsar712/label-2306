@@ -179,6 +179,17 @@
             </div>
           </template>
         </el-table-column>
+        <el-table-column label="生日" min-width="140">
+          <template #default="{ row }">
+            <span v-if="row.birthdayMonth && row.birthdayDay">
+              {{ row.birthday ? row.birthday + '年' : '' }}{{ row.birthdayMonth }}月{{ row.birthdayDay }}日
+              <el-tag size="small" :type="row.calendarType === 'LUNAR' ? 'warning' : 'info'" effect="plain" class="ml-4">
+                {{ row.calendarType === 'LUNAR' ? '农历' : '公历' }}
+              </el-tag>
+            </span>
+            <span v-else class="text-gray">未设置</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="joinDate" label="加入时间" min-width="160">
           <template #default="{ row }">
             {{ formatDate(row.joinDate) }}
@@ -250,6 +261,25 @@
             <el-radio label="INACTIVE">不活跃</el-radio>
             <el-radio label="SUSPENDED">已停用</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="生日信息">
+          <el-row :gutter="12">
+            <el-col :span="6">
+              <el-input-number v-model="form.birthday" :min="1900" :max="2100" placeholder="年" controls-position="right" class="w-full" />
+            </el-col>
+            <el-col :span="6">
+              <el-input-number v-model="form.birthdayMonth" :min="1" :max="12" placeholder="月" controls-position="right" class="w-full" />
+            </el-col>
+            <el-col :span="6">
+              <el-input-number v-model="form.birthdayDay" :min="1" :max="31" placeholder="日" controls-position="right" class="w-full" />
+            </el-col>
+            <el-col :span="6">
+              <el-select v-model="form.calendarType" class="w-full">
+                <el-option label="公历" value="SOLAR" />
+                <el-option label="农历" value="LUNAR" />
+              </el-select>
+            </el-col>
+          </el-row>
         </el-form-item>
         <el-form-item label="会员标签">
           <el-select
@@ -451,7 +481,11 @@ const form = reactive({
   email: '',
   level: 'NORMAL',
   points: 0,
-  status: 'ACTIVE'
+  status: 'ACTIVE',
+  birthday: null,
+  birthdayMonth: null,
+  birthdayDay: null,
+  calendarType: 'SOLAR',
 });
 
 const rules = {
@@ -541,6 +575,10 @@ const resetForm = () => {
   form.level = 'NORMAL';
   form.points = 0;
   form.status = 'ACTIVE';
+  form.birthday = null;
+  form.birthdayMonth = null;
+  form.birthdayDay = null;
+  form.calendarType = 'SOLAR';
   formTagIds.value = [];
 };
 

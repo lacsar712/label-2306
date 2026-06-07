@@ -26,6 +26,10 @@ model User {
   operatedExportTasks ExportTask[]
   operatedWorkOrders WorkOrder[]
   operatedExchangeRecords ExchangeRecord[]
+  operatedBirthdayWishTemplates BirthdayWishTemplate[]
+  operatedBirthdayPointsRules BirthdayPointsRule[]
+  operatedBirthdayCareConfigs BirthdayCareConfig[]
+  operatedBirthdayCareRecords BirthdayCareRecord[]
 
   @@map("users")
 }
@@ -39,6 +43,10 @@ model Member {
   status        MemberStatus @default(ACTIVE)
   points        Int      @default(0)
   frozenPoints  Int      @default(0) @map("frozen_points")
+  birthday      Int?     @map("birthday")
+  birthdayMonth Int?     @map("birthday_month")
+  birthdayDay   Int?     @map("birthday_day")
+  calendarType  CalendarType @default(SOLAR) @map("calendar_type")
   joinDate      DateTime @default(now())
   updatedAt     DateTime @updatedAt
   transactions  PointsTransaction[]
@@ -48,8 +56,14 @@ model Member {
   workOrders    WorkOrder[]
   signInRecords SignInRecord[]
   exchangeRecords ExchangeRecord[]
+  birthdayCareRecords BirthdayCareRecord[]
 
   @@map("members")
+}
+
+enum CalendarType {
+  SOLAR
+  LUNAR
 }
 
 enum MemberLevel {
@@ -85,6 +99,7 @@ enum PointsReasonType {
   UNFREEZE_OP
   REVERSE_OP
   REGISTER_REWARD
+  BIRTHDAY_GIFT
   OTHER
 }
 
@@ -106,6 +121,7 @@ model PointsTransaction {
   reverseOfId   Int?              @map("reverse_of_id")
   reverseOf     PointsTransaction? @relation("ReverseRelation", fields: [reverseOfId], references: [id], onDelete: SetNull)
   reversedBy    PointsTransaction[] @relation("ReverseRelation")
+  birthdayCareRecords BirthdayCareRecord[]
   createdAt     DateTime          @default(now()) @map("created_at")
 
   @@index([memberId])
@@ -151,6 +167,9 @@ enum AuditActionType {
   MEMBER_TAG_BIND
   MEMBER_TAG_UNBIND
   TAG_RULE_APPLY
+  BIRTHDAY_CONFIG_UPDATE
+  BIRTHDAY_CARE_EXECUTE
+  BIRTHDAY_CARE_BATCH
   OTHER
 }
 
@@ -165,6 +184,9 @@ enum AuditEntityType {
   TAG_GROUP
   TAG
   MEMBER_TAG
+  BIRTHDAY_WISH_TEMPLATE
+  BIRTHDAY_POINTS_RULE
+  BIRTHDAY_CARE_RECORD
 }
 
 model TagGroup {
@@ -656,4 +678,89 @@ model ExchangeRecord {
   @@index([status])
   @@index([createdAt])
   @@map("exchange_records")
+}
+
+enum CareChannel {
+  SMS
+  WECHAT
+  EMAIL
+  IN_APP
+  MANUAL
+}
+
+enum CareResult {
+  SUCCESS
+  FAILED
+  PARTIAL
+  SKIPPED
+}
+
+model BirthdayWishTemplate {
+  id          Int          @id @default(autoincrement())
+  level       MemberLevel  @unique
+  title       String
+  content     String       @db.Text
+  isEnabled   Boolean      @default(true) @map("is_enabled")
+  operatorId  Int?         @map("operator_id")
+  operator    User?        @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([level])
+  @@map("birthday_wish_templates")
+}
+
+model BirthdayPointsRule {
+  id                  Int          @id @default(autoincrement())
+  level               MemberLevel  @unique
+  points              Int          @default(0)
+  preventDuplicate    Boolean      @default(true) @map("prevent_duplicate")
+  isEnabled           Boolean      @default(true) @map("is_enabled")
+  operatorId          Int?         @map("operator_id")
+  operator            User?        @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  @@index([level])
+  @@map("birthday_points_rules")
+}
+
+model BirthdayCareConfig {
+  id                  Int      @id @default(autoincrement())
+  remindDaysBefore    Int      @default(3) @map("remind_days_before")
+  autoSendEnabled     Boolean  @default(false) @map("auto_send_enabled")
+  defaultChannel      CareChannel @default(SMS) @map("default_channel")
+  operatorId          Int?     @map("operator_id")
+  operator            User?    @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("birthday_care_configs")
+}
+
+model BirthdayCareRecord {
+  id                 Int          @id @default(autoincrement())
+  memberId           Int          @map("member_id")
+  member             Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  birthdayYear       Int          @map("birthday_year")
+  channel            CareChannel  @map("channel")
+  templateId         Int?         @map("template_id")
+  wishContent        String?      @db.Text @map("wish_content")
+  pointsGiven        Int          @default(0) @map("points_given")
+  transactionId      Int?         @map("transaction_id")
+  transaction        PointsTransaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  operatorId         Int?         @map("operator_id")
+  operator           User?        @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  result             CareResult   @default(SUCCESS)
+  errorMessage       String?      @db.Text @map("error_message")
+  remark             String?
+  createdAt          DateTime     @default(now()) @map("created_at")
+
+  @@unique([memberId, birthdayYear])
+  @@index([memberId])
+  @@index([birthdayYear])
+  @@index([channel])
+  @@index([result])
+  @@index([createdAt])
+  @@map("birthday_care_records")
 }

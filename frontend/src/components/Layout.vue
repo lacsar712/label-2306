@@ -38,6 +38,10 @@
           <el-icon><Download /></el-icon>
           <span>数据导出</span>
         </el-menu-item>
+        <el-menu-item index="/birthdays">
+          <el-icon><Cherry /></el-icon>
+          <span>生日关怀</span>
+        </el-menu-item>
         <el-menu-item v-if="authStore.isAdmin" index="/system">
           <el-icon><Setting /></el-icon>
           <span>系统管理</span>
@@ -165,7 +169,7 @@ import { computed, ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useNotificationStore } from '../stores/notification';
-import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets, Document, PriceTag, Present, Bell, Search, Download } from '@element-plus/icons-vue';
+import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets, Document, PriceTag, Present, Bell, Search, Download, Cherry } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import dayjs from 'dayjs';
 
@@ -198,6 +202,8 @@ const currentPageName = computed(() => {
   if (route.path === '/notifications') return '通知中心';
   if (route.path.startsWith('/notifications/')) return '通知中心';
   if (route.path === '/export') return '数据导出';
+  if (route.path === '/birthdays') return '生日关怀';
+  if (route.path === '/birthdays/config') return '生日关怀配置';
   if (route.path === '/system') return '系统管理';
   if (route.path === '/audit-logs') return '操作审计';
   return '';
