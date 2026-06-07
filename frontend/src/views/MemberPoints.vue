@@ -43,6 +43,27 @@
           <el-input-number v-model="form.points" class="w-full" :precision="0" />
         </el-form-item>
 
+        <el-form-item label="原因类型" prop="reasonType">
+          <el-select v-model="form.reasonType" class="w-full" placeholder="请选择原因类型">
+            <el-option label="人工调整" value="MANUAL_ADJUST" />
+            <el-option label="签到奖励" value="SIGN_IN_REWARD" />
+            <el-option label="活动加成" value="ACTIVITY_BONUS" />
+            <el-option label="消费获取" value="ORDER_EARN" />
+            <el-option label="商城兑换" value="MALL_EXCHANGE" />
+            <el-option label="过期清零" value="EXPIRE_CLEAR" />
+            <el-option label="注册奖励" value="REGISTER_REWARD" />
+            <el-option label="其他" value="OTHER" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="关联业务单号" prop="bizOrderNo">
+          <el-input v-model="form.bizOrderNo" placeholder="可选，如兑换单号、活动单号、工单号" />
+        </el-form-item>
+
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="可选，备注说明" />
+        </el-form-item>
+
         <el-form-item class="form-actions">
           <el-button type="primary" :loading="submitting" @click="handleSubmit" size="large" class="submit-btn">
             确定
@@ -68,7 +89,10 @@ const members = ref([]);
 
 const form = reactive({
   memberId: null,
-  points: 0
+  points: 0,
+  reasonType: 'MANUAL_ADJUST',
+  bizOrderNo: '',
+  remark: ''
 });
 
 const rules = {
@@ -99,9 +123,14 @@ const handleSubmit = async () => {
       }
       submitting.value = true;
       try {
-        await api.post(`/members/${form.memberId}/points`, { points: form.points });
+        await api.post(`/members/${form.memberId}/points`, {
+          points: form.points,
+          reasonType: form.reasonType,
+          bizOrderNo: form.bizOrderNo || null,
+          remark: form.remark || null,
+        });
         ElMessage.success('积分更新成功');
-        router.push('/members');
+        router.push('/transactions');
       } finally {
         submitting.value = false;
       }

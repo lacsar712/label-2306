@@ -9,26 +9,29 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  password  String
-  role      String   @default("ADMIN")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  username      String   @unique
+  password      String
+  role          String   @default("ADMIN")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  operatedTxs   PointsTransaction[]
 
   @@map("users")
 }
 
 model Member {
-  id        Int      @id @default(autoincrement())
-  name      String
-  phone     String   @unique
-  email     String?
-  level     MemberLevel @default(NORMAL)
-  status    MemberStatus @default(ACTIVE)
-  points    Int      @default(0)
-  joinDate  DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  name          String
+  phone         String   @unique
+  email         String?
+  level         MemberLevel @default(NORMAL)
+  status        MemberStatus @default(ACTIVE)
+  points        Int      @default(0)
+  frozenPoints  Int      @default(0) @map("frozen_points")
+  joinDate      DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  transactions  PointsTransaction[]
 
   @@map("members")
 }
@@ -44,4 +47,56 @@ enum MemberStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+}
+
+enum PointsChangeType {
+  ADD
+  DEDUCT
+  FREEZE
+  UNFREEZE
+  EXPIRE
+  REVERSE
+}
+
+enum PointsReasonType {
+  MANUAL_ADJUST
+  MALL_EXCHANGE
+  SIGN_IN_REWARD
+  ACTIVITY_BONUS
+  ORDER_EARN
+  EXPIRE_CLEAR
+  FREEZE_OP
+  UNFREEZE_OP
+  REVERSE_OP
+  REGISTER_REWARD
+  OTHER
+}
+
+model PointsTransaction {
+  id            Int               @id @default(autoincrement())
+  serialNo      String            @unique @map("serial_no")
+  memberId      Int               @map("member_id")
+  member        Member            @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  changeType    PointsChangeType  @map("change_type")
+  changeValue   Int               @map("change_value")
+  balanceBefore Int               @map("balance_before")
+  balanceAfter  Int               @map("balance_after")
+  reasonType    PointsReasonType  @map("reason_type")
+  bizOrderNo    String?           @map("biz_order_no")
+  bizOrderType  String?           @map("biz_order_type")
+  operatorId    Int?              @map("operator_id")
+  operator      User?             @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  remark        String?
+  reverseOfId   Int?              @map("reverse_of_id")
+  reverseOf     PointsTransaction? @relation("ReverseRelation", fields: [reverseOfId], references: [id], onDelete: SetNull)
+  reversedBy    PointsTransaction[] @relation("ReverseRelation")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  @@index([memberId])
+  @@index([serialNo])
+  @@index([changeType])
+  @@index([reasonType])
+  @@index([bizOrderNo])
+  @@index([createdAt])
+  @@map("points_transactions")
 }

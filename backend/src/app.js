@@ -4,6 +4,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const memberRoutes = require('./routes/members');
 const systemRoutes = require('./routes/system');
+const transactionRoutes = require('./routes/transactions');
 const logger = require('./utils/logger');
 
 const app = express();
@@ -11,12 +12,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/system', systemRoutes);
-// Compatibility for /api/stats which was at /api/stats in index.js
+app.use('/api/transactions', transactionRoutes);
 app.use('/api', systemRoutes); 
 
 // Global Error Handler

@@ -18,6 +18,10 @@
           <el-icon><User /></el-icon>
           <span>会员列表</span>
         </el-menu-item>
+        <el-menu-item index="/transactions">
+          <el-icon><Tickets /></el-icon>
+          <span>积分流水</span>
+        </el-menu-item>
         <el-menu-item v-if="authStore.isAdmin" index="/system">
           <el-icon><Setting /></el-icon>
           <span>系统管理</span>
@@ -63,7 +67,7 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { DataAnalysis, User, Setting, SwitchButton, UserFilled } from '@element-plus/icons-vue';
+import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 const route = useRoute();
@@ -74,6 +78,8 @@ const activeMenu = computed(() => route.path);
 const currentPageName = computed(() => {
   if (route.path === '/') return '数据概览';
   if (route.path === '/members') return '会员列表';
+  if (route.path === '/points') return '会员积分';
+  if (route.path === '/transactions') return '积分流水';
   if (route.path === '/system') return '系统管理';
   return '';
 });

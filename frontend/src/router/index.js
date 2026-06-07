@@ -32,6 +32,11 @@ const router = createRouter({
           component: () => import('../views/MemberPoints.vue'),
         },
         {
+          path: 'transactions',
+          name: 'Transactions',
+          component: () => import('../views/Transactions.vue'),
+        },
+        {
           path: 'system',
           name: 'System',
           component: () => import('../views/SystemManagement.vue'),

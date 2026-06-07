@@ -94,6 +94,9 @@
               <el-button type="warning" class="action-btn" @click="$router.push('/points')">
                 会员积分
               </el-button>
+              <el-button type="success" class="action-btn" @click="$router.push('/transactions')">
+                积分流水
+              </el-button>
             </div>
             <div class="tip-box">
               <h4 class="tip-title">💡 提示</h4>

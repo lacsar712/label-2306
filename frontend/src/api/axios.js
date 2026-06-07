@@ -15,7 +15,12 @@ instance.interceptors.request.use((config) => {
 });
 
 instance.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    if (response.config.responseType === 'blob') {
+      return response.data;
+    }
+    return response.data;
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
