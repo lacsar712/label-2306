@@ -322,6 +322,104 @@ const BirthdayQuerySchema = z.object({
   level: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']).optional(),
 });
 
+const ShopCategorySchema = z.object({
+  name: z.string().min(1).max(50),
+  description: z.string().max(200).optional().nullable(),
+  sortOrder: z.number().int().optional().default(0),
+  isEnabled: z.boolean().optional().default(true),
+});
+
+const ShopCategoryUpdateSchema = ShopCategorySchema.partial();
+
+const ShopCategoryQuerySchema = z.object({
+  isEnabled: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const ShopProductSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional().nullable(),
+  coverImage: z.string().max(500).optional().nullable(),
+  images: z.array(z.string().max(500)).optional().nullable(),
+  pointsCost: z.coerce.number().int().nonnegative(),
+  shippingPoints: z.coerce.number().int().nonnegative().optional().default(0),
+  stock: z.coerce.number().int().nonnegative().optional().default(0),
+  lowStockThreshold: z.coerce.number().int().nonnegative().optional().default(10),
+  status: z.enum(['ON_SHELF', 'OFF_SHELF', 'DRAFT']).optional().default('DRAFT'),
+  sortOrder: z.coerce.number().int().optional().default(0),
+  isHot: z.boolean().optional().default(false),
+  isNew: z.boolean().optional().default(false),
+  perPersonLimit: z.coerce.number().int().positive().optional().nullable(),
+  dailyLimit: z.coerce.number().int().positive().optional().nullable(),
+  requiredLevel: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']).optional().nullable(),
+  categoryId: z.coerce.number().int().optional().nullable(),
+});
+
+const ShopProductUpdateSchema = ShopProductSchema.partial();
+
+const ShopProductQuerySchema = z.object({
+  search: z.string().optional(),
+  categoryId: z.coerce.number().int().optional(),
+  status: z.enum(['ON_SHELF', 'OFF_SHELF', 'DRAFT']).optional(),
+  isHot: z.string().optional(),
+  isNew: z.string().optional(),
+  lowStock: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const ShopProductStatusSchema = z.object({
+  status: z.enum(['ON_SHELF', 'OFF_SHELF', 'DRAFT']),
+  remark: z.string().optional().nullable(),
+});
+
+const ShopBrowseQuerySchema = z.object({
+  categoryId: z.coerce.number().int().optional(),
+  isHot: z.string().optional(),
+  isNew: z.string().optional(),
+  sortBy: z.enum(['sortOrder', 'createdAt', 'pointsCost', 'soldCount']).optional().default('sortOrder'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const ExchangeCreateSchema = z.object({
+  memberId: z.coerce.number().int(),
+  productId: z.coerce.number().int(),
+  quantity: z.coerce.number().int().positive().optional().default(1),
+  shippingInfo: z.object({
+    name: z.string(),
+    phone: z.string(),
+    address: z.string(),
+  }).optional().nullable(),
+  remark: z.string().optional().nullable(),
+});
+
+const ExchangeStatusSchema = z.object({
+  status: z.enum(['PENDING_CONFIRM', 'PENDING_SHIP', 'SHIPPED', 'COMPLETED', 'CANCELLED']),
+  remark: z.string().optional().nullable(),
+  trackingNo: z.string().optional().nullable(),
+  shippingInfo: z.object({
+    name: z.string(),
+    phone: z.string(),
+    address: z.string(),
+  }).optional().nullable(),
+  cancelReason: z.string().optional().nullable(),
+});
+
+const ExchangeRecordQuerySchema = z.object({
+  memberId: z.coerce.number().int().optional(),
+  memberName: z.string().optional(),
+  memberPhone: z.string().optional(),
+  productId: z.coerce.number().int().optional(),
+  status: z.enum(['PENDING_CONFIRM', 'PENDING_SHIP', 'SHIPPED', 'COMPLETED', 'CANCELLED']).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
 module.exports = {
   MemberSchema,
   PointsUpdateSchema,
@@ -367,4 +465,15 @@ module.exports = {
   BirthdayCareExecuteSchema,
   BirthdayCareRecordQuerySchema,
   BirthdayQuerySchema,
+  ShopCategorySchema,
+  ShopCategoryUpdateSchema,
+  ShopCategoryQuerySchema,
+  ShopProductSchema,
+  ShopProductUpdateSchema,
+  ShopProductQuerySchema,
+  ShopProductStatusSchema,
+  ShopBrowseQuerySchema,
+  ExchangeCreateSchema,
+  ExchangeStatusSchema,
+  ExchangeRecordQuerySchema,
 };

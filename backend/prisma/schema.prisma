@@ -26,10 +26,12 @@ model User {
   operatedExportTasks ExportTask[]
   operatedWorkOrders WorkOrder[]
   operatedExchangeRecords ExchangeRecord[]
+  cancelledExchangeRecords ExchangeRecord[] @relation("CancelOperator")
   operatedBirthdayWishTemplates BirthdayWishTemplate[]
   operatedBirthdayPointsRules BirthdayPointsRule[]
   operatedBirthdayCareConfigs BirthdayCareConfig[]
   operatedBirthdayCareRecords BirthdayCareRecord[]
+  operatedShopProducts ShopProduct[]
 
   @@map("users")
 }
@@ -122,6 +124,7 @@ model PointsTransaction {
   reverseOf     PointsTransaction? @relation("ReverseRelation", fields: [reverseOfId], references: [id], onDelete: SetNull)
   reversedBy    PointsTransaction[] @relation("ReverseRelation")
   birthdayCareRecords BirthdayCareRecord[]
+  exchangeRecords ExchangeRecord[]
   createdAt     DateTime          @default(now()) @map("created_at")
 
   @@index([memberId])
@@ -131,62 +134,6 @@ model PointsTransaction {
   @@index([bizOrderNo])
   @@index([createdAt])
   @@map("points_transactions")
-}
-
-enum AuditActionType {
-  MEMBER_CREATE
-  MEMBER_UPDATE
-  MEMBER_DELETE
-  POINTS_ADJUST
-  POINTS_FREEZE
-  POINTS_UNFREEZE
-  USER_CREATE
-  USER_UPDATE
-  USER_DELETE
-  AUTH_LOGIN
-  AUTH_LOGOUT
-  COUPON_ISSUE
-  COUPON_CREATE
-  COUPON_UPDATE
-  COUPON_DELETE
-  COUPON_STATUS_CHANGE
-  COUPON_REDEEM
-  COUPON_REFUND
-  BLACKLIST_ADD
-  BLACKLIST_REMOVE
-  DATA_EXPORT
-  SYSTEM_CONFIG
-  TRANSACTION_REVERSE
-  BATCH_OPERATION
-  TAG_GROUP_CREATE
-  TAG_GROUP_UPDATE
-  TAG_GROUP_DELETE
-  TAG_CREATE
-  TAG_UPDATE
-  TAG_DELETE
-  MEMBER_TAG_BIND
-  MEMBER_TAG_UNBIND
-  TAG_RULE_APPLY
-  BIRTHDAY_CONFIG_UPDATE
-  BIRTHDAY_CARE_EXECUTE
-  BIRTHDAY_CARE_BATCH
-  OTHER
-}
-
-enum AuditEntityType {
-  MEMBER
-  USER
-  POINTS_TRANSACTION
-  COUPON
-  BLACKLIST
-  SYSTEM
-  AUDIT_CONFIG
-  TAG_GROUP
-  TAG
-  MEMBER_TAG
-  BIRTHDAY_WISH_TEMPLATE
-  BIRTHDAY_POINTS_RULE
-  BIRTHDAY_CARE_RECORD
 }
 
 model TagGroup {
@@ -561,6 +508,138 @@ enum ExportType {
   EXCHANGE_RECORDS
 }
 
+enum ShopProductStatus {
+  ON_SHELF
+  OFF_SHELF
+  DRAFT
+}
+
+enum ExchangeOrderStatus {
+  PENDING_CONFIRM
+  PENDING_SHIP
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+model ShopCategory {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  description String?
+  sortOrder   Int           @default(0) @map("sort_order")
+  isEnabled   Boolean       @default(true) @map("is_enabled")
+  products    ShopProduct[]
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([sortOrder])
+  @@map("shop_categories")
+}
+
+model ShopProduct {
+  id                Int                @id @default(autoincrement())
+  name              String
+  description       String?            @db.Text
+  coverImage        String?            @map("cover_image")
+  images            Json?
+  pointsCost        Int                @map("points_cost")
+  shippingPoints    Int                @default(0) @map("shipping_points")
+  stock             Int                @default(0)
+  lowStockThreshold Int                @default(10) @map("low_stock_threshold")
+  soldCount         Int                @default(0) @map("sold_count")
+  status            ShopProductStatus  @default(DRAFT)
+  sortOrder         Int                @default(0) @map("sort_order")
+  isHot             Boolean            @default(false) @map("is_hot")
+  isNew             Boolean            @default(false) @map("is_new")
+  perPersonLimit    Int?               @map("per_person_limit")
+  dailyLimit        Int?               @map("daily_limit")
+  requiredLevel     MemberLevel?       @map("required_level")
+  categoryId        Int?               @map("category_id")
+  category          ShopCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  exchangeRecords   ExchangeRecord[]
+  operatorId        Int?               @map("operator_id")
+  operator          User?              @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([sortOrder])
+  @@index([isHot])
+  @@index([isNew])
+  @@index([createdAt])
+  @@map("shop_products")
+}
+
+enum AuditActionType {
+  MEMBER_CREATE
+  MEMBER_UPDATE
+  MEMBER_DELETE
+  POINTS_ADJUST
+  POINTS_FREEZE
+  POINTS_UNFREEZE
+  USER_CREATE
+  USER_UPDATE
+  USER_DELETE
+  AUTH_LOGIN
+  AUTH_LOGOUT
+  COUPON_ISSUE
+  COUPON_CREATE
+  COUPON_UPDATE
+  COUPON_DELETE
+  COUPON_STATUS_CHANGE
+  COUPON_REDEEM
+  COUPON_REFUND
+  BLACKLIST_ADD
+  BLACKLIST_REMOVE
+  DATA_EXPORT
+  SYSTEM_CONFIG
+  TRANSACTION_REVERSE
+  BATCH_OPERATION
+  TAG_GROUP_CREATE
+  TAG_GROUP_UPDATE
+  TAG_GROUP_DELETE
+  TAG_CREATE
+  TAG_UPDATE
+  TAG_DELETE
+  MEMBER_TAG_BIND
+  MEMBER_TAG_UNBIND
+  TAG_RULE_APPLY
+  BIRTHDAY_CONFIG_UPDATE
+  BIRTHDAY_CARE_EXECUTE
+  BIRTHDAY_CARE_BATCH
+  SHOP_CATEGORY_CREATE
+  SHOP_CATEGORY_UPDATE
+  SHOP_CATEGORY_DELETE
+  SHOP_PRODUCT_CREATE
+  SHOP_PRODUCT_UPDATE
+  SHOP_PRODUCT_DELETE
+  SHOP_PRODUCT_STATUS_CHANGE
+  EXCHANGE_ORDER_CREATE
+  EXCHANGE_ORDER_STATUS_CHANGE
+  EXCHANGE_ORDER_CANCEL
+  OTHER
+}
+
+enum AuditEntityType {
+  MEMBER
+  USER
+  POINTS_TRANSACTION
+  COUPON
+  BLACKLIST
+  SYSTEM
+  AUDIT_CONFIG
+  TAG_GROUP
+  TAG
+  MEMBER_TAG
+  BIRTHDAY_WISH_TEMPLATE
+  BIRTHDAY_POINTS_RULE
+  BIRTHDAY_CARE_RECORD
+  SHOP_CATEGORY
+  SHOP_PRODUCT
+  EXCHANGE_RECORD
+}
+
 enum ExportStatus {
   PENDING
   GENERATING
@@ -661,20 +740,38 @@ model SignInRecord {
 }
 
 model ExchangeRecord {
-  id          Int      @id @default(autoincrement())
-  memberId    Int      @map("member_id")
-  member      Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
-  itemName    String   @map("item_name")
-  pointsCost  Int      @map("points_cost")
-  quantity    Int      @default(1)
-  orderNo     String   @unique @map("order_no")
-  status      String   @default("COMPLETED")
-  operatorId  Int?     @map("operator_id")
-  operator    User?    @relation(fields: [operatorId], references: [id], onDelete: SetNull)
-  remark      String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id              Int                  @id @default(autoincrement())
+  memberId        Int                  @map("member_id")
+  member          Member               @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  productId       Int                  @map("product_id")
+  product         ShopProduct          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productSnapshot Json                 @map("product_snapshot")
+  itemName        String               @map("item_name")
+  pointsCost      Int                  @map("points_cost")
+  shippingPoints  Int                  @default(0) @map("shipping_points")
+  totalPoints     Int                  @map("total_points")
+  quantity        Int                  @default(1)
+  orderNo         String               @unique @map("order_no")
+  status          ExchangeOrderStatus  @default(PENDING_CONFIRM)
+  shippingInfo    Json?                @map("shipping_info")
+  trackingNo      String?              @map("tracking_no")
+  cancelledAt     DateTime?            @map("cancelled_at")
+  confirmedAt     DateTime?            @map("confirmed_at")
+  shippedAt       DateTime?            @map("shipped_at")
+  completedAt     DateTime?            @map("completed_at")
+  transactionId   Int?                 @map("transaction_id")
+  transaction     PointsTransaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  operatorId      Int?                 @map("operator_id")
+  operator        User?                @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  cancelOperatorId Int?                @map("cancel_operator_id")
+  cancelOperator  User?                @relation("CancelOperator", fields: [cancelOperatorId], references: [id], onDelete: SetNull)
+  cancelReason    String?              @map("cancel_reason")
+  remark          String?
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
 
   @@index([memberId])
+  @@index([productId])
   @@index([status])
   @@index([createdAt])
   @@map("exchange_records")

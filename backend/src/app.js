@@ -11,6 +11,7 @@ const couponRoutes = require('./routes/coupons');
 const notificationRoutes = require('./routes/notifications');
 const exportRoutes = require('./routes/exports');
 const birthdayRoutes = require('./routes/birthdays');
+const shopRoutes = require('./routes/shop');
 const logger = require('./utils/logger');
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/birthdays', birthdayRoutes);
+app.use('/api/shop', shopRoutes);
 app.use('/api', systemRoutes); 
 
 // Global Error Handler
