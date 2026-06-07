@@ -240,6 +240,34 @@ const NotificationReadSchema = z.object({
   ids: z.array(z.coerce.number().int()).optional(),
 });
 
+const ExportTaskCreateSchema = z.object({
+  exportType: z.enum(['MEMBERS', 'POINTS_TRANSACTIONS', 'COUPON_CLAIMS', 'WORK_ORDERS', 'SIGN_IN_RECORDS', 'EXCHANGE_RECORDS']),
+  fields: z.array(z.string()).min(1, '至少选择一个导出字段'),
+  filters: z.record(z.any()).optional().nullable(),
+  dateRange: z.object({
+    start: z.string().optional().nullable(),
+    end: z.string().optional().nullable(),
+  }).optional().nullable(),
+  sortBy: z.string().optional().nullable(),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+});
+
+const ExportTaskQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+  exportType: z.enum(['MEMBERS', 'POINTS_TRANSACTIONS', 'COUPON_CLAIMS', 'WORK_ORDERS', 'SIGN_IN_RECORDS', 'EXCHANGE_RECORDS']).optional(),
+  status: z.enum(['PENDING', 'GENERATING', 'COMPLETED', 'FAILED']).optional(),
+  operatorId: z.coerce.number().int().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  keyword: z.string().optional(),
+});
+
+const ExportFieldConfigUpdateSchema = z.object({
+  adminFields: z.array(z.string()),
+  userFields: z.array(z.string()),
+});
+
 module.exports = {
   MemberSchema,
   PointsUpdateSchema,
@@ -274,4 +302,7 @@ module.exports = {
   NotificationSendSchema,
   UserNotificationQuerySchema,
   NotificationReadSchema,
+  ExportTaskCreateSchema,
+  ExportTaskQuerySchema,
+  ExportFieldConfigUpdateSchema,
 };

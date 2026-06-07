@@ -23,6 +23,9 @@ model User {
   operatedNotificationTemplates NotificationTemplate[]
   operatedNotifications Notification[]
   receivedNotifications NotificationRecipient[]
+  operatedExportTasks ExportTask[]
+  operatedWorkOrders WorkOrder[]
+  operatedExchangeRecords ExchangeRecord[]
 
   @@map("users")
 }
@@ -42,6 +45,9 @@ model Member {
   memberTags    MemberTag[]
   tagHistories  TagBindingHistory[]
   memberCoupons MemberCoupon[]
+  workOrders    WorkOrder[]
+  signInRecords SignInRecord[]
+  exchangeRecords ExchangeRecord[]
 
   @@map("members")
 }
@@ -522,4 +528,132 @@ model NotificationRecipient {
   @@index([isRead])
   @@index([createdAt])
   @@map("notification_recipients")
+}
+
+enum ExportType {
+  MEMBERS
+  POINTS_TRANSACTIONS
+  COUPON_CLAIMS
+  WORK_ORDERS
+  SIGN_IN_RECORDS
+  EXCHANGE_RECORDS
+}
+
+enum ExportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+model ExportTask {
+  id               Int          @id @default(autoincrement())
+  exportType       ExportType   @map("export_type")
+  status           ExportStatus @default(PENDING)
+  fields           Json         @map("fields")
+  filters          Json?        @map("filters")
+  dateRange        Json?        @map("date_range")
+  sortBy           String?      @map("sort_by")
+  sortOrder        String?      @default("desc") @map("sort_order")
+  filterSummary    String?      @map("filter_summary")
+  filePath         String?      @map("file_path")
+  fileName         String?      @map("file_name")
+  fileSize         Int?         @map("file_size")
+  downloadCount    Int          @default(0) @map("download_count")
+  errorMessage     String?      @map("error_message") @db.Text
+  operatorId       Int?         @map("operator_id")
+  operator         User?        @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  operatorUsername String?      @map("operator_username")
+  expiredAt        DateTime?    @map("expired_at")
+  completedAt      DateTime?    @map("completed_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  @@index([exportType])
+  @@index([status])
+  @@index([operatorId])
+  @@index([createdAt])
+  @@index([expiredAt])
+  @@map("export_tasks")
+}
+
+model ExportFieldConfig {
+  id           Int        @id @default(autoincrement())
+  exportType   ExportType @unique @map("export_type")
+  adminFields  Json       @map("admin_fields")
+  userFields   Json       @map("user_fields")
+  updatedBy    Int?       @map("updated_by")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("export_field_configs")
+}
+
+enum WorkOrderStatus {
+  PENDING
+  PROCESSING
+  RESOLVED
+  CLOSED
+}
+
+enum WorkOrderPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model WorkOrder {
+  id          Int              @id @default(autoincrement())
+  title       String
+  description String?          @db.Text
+  status      WorkOrderStatus  @default(PENDING)
+  priority    WorkOrderPriority @default(MEDIUM)
+  memberId    Int              @map("member_id")
+  member      Member           @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  operatorId  Int?             @map("operator_id")
+  operator    User?            @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  resolvedAt  DateTime?        @map("resolved_at")
+  closedAt    DateTime?        @map("closed_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([priority])
+  @@index([memberId])
+  @@index([createdAt])
+  @@map("work_orders")
+}
+
+model SignInRecord {
+  id        Int      @id @default(autoincrement())
+  memberId  Int      @map("member_id")
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  points    Int      @default(0)
+  signDate  DateTime @default(now()) @map("sign_date")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([memberId, signDate])
+  @@index([memberId])
+  @@index([signDate])
+  @@map("sign_in_records")
+}
+
+model ExchangeRecord {
+  id          Int      @id @default(autoincrement())
+  memberId    Int      @map("member_id")
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  itemName    String   @map("item_name")
+  pointsCost  Int      @map("points_cost")
+  quantity    Int      @default(1)
+  orderNo     String   @unique @map("order_no")
+  status      String   @default("COMPLETED")
+  operatorId  Int?     @map("operator_id")
+  operator    User?    @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  remark      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([memberId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("exchange_records")
 }

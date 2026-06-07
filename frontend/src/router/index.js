@@ -68,6 +68,11 @@ const router = createRouter({
           name: 'NotificationSend',
           component: () => import('../views/NotificationSend.vue'),
         },
+        {
+          path: 'export',
+          name: 'DataExport',
+          component: () => import('../views/DataExportCenter.vue'),
+        },
       ],
     },
   ],
