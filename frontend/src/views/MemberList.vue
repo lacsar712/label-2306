@@ -195,9 +195,10 @@
             {{ formatDate(row.joinDate) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="180">
+        <el-table-column label="操作" fixed="right" width="240">
           <template #default="{ row }">
             <el-button link @click="handleEdit(row)">编辑</el-button>
+            <el-button link type="primary" @click="openBenefitsDialog(row)">权益</el-button>
             <el-button link type="warning" @click="$router.push({ path: '/points', query: { memberId: row.id } })">积分</el-button>
             <el-popconfirm title="确定删除该会员吗？" @confirm="handleDelete(row.id)">
               <template #reference>
@@ -437,6 +438,82 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="showBenefitsDialog"
+      :title="`会员权益 - ${viewingMember?.name || ''}`"
+      width="640px"
+      destroy-on-close
+    >
+      <div v-loading="benefitsLoading" class="member-benefits">
+        <div class="member-info-bar">
+          <el-avatar :size="40" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
+          <div class="member-info-detail">
+            <div class="member-name-row">
+              <span class="member-name">{{ viewingMember?.name }}</span>
+              <el-tag :type="getLevelTagType(viewingMember?.level)" effect="dark" size="small">
+                {{ getLevelLabel(viewingMember?.level) }}
+              </el-tag>
+            </div>
+            <div class="member-sub">
+              <el-icon><Coin /></el-icon>当前积分: {{ viewingMember?.points || 0 }}
+            </div>
+          </div>
+        </div>
+
+        <el-divider content-position="left">
+          <span class="divider-title">
+            <el-icon><Medal /></el-icon>当前等级权益 ({{ memberBenefitsData?.currentLevelBenefits?.length || 0 }} 项)
+          </span>
+        </el-divider>
+
+        <div v-if="memberBenefitsData?.currentLevelBenefits?.length > 0" class="benefit-list">
+          <div v-for="b in memberBenefitsData.currentLevelBenefits" :key="b.id" class="benefit-card">
+            <div class="benefit-icon">
+              <el-icon :size="20"><component :is="b.icon || 'Star'" /></el-icon>
+            </div>
+            <div class="benefit-body">
+              <div class="benefit-title">
+                {{ b.title }}
+                <el-tag v-if="b.minPoints > 0" size="small" type="warning" effect="plain" class="benefit-points">
+                  {{ b.minPoints }} 积分以上
+                </el-tag>
+              </div>
+              <div class="benefit-desc" v-html="b.description"></div>
+            </div>
+          </div>
+        </div>
+        <el-empty v-else description="当前等级暂无已发布的权益" :image-size="80" />
+
+        <template v-if="memberBenefitsData?.nextLevel">
+          <el-divider content-position="left">
+            <span class="divider-title divider-next">
+              <el-icon><TrendCharts /></el-icon>
+              {{ getLevelLabel(memberBenefitsData.nextLevel) }} 可解锁权益预览
+              <el-tag size="small" type="info" effect="plain">升级后可享</el-tag>
+            </span>
+          </el-divider>
+
+          <div v-if="memberBenefitsData?.nextLevelBenefits?.length > 0" class="benefit-list benefit-list-next">
+            <div v-for="b in memberBenefitsData.nextLevelBenefits" :key="b.id" class="benefit-card benefit-card-next">
+              <div class="benefit-lock">
+                <el-icon :size="16"><Lock /></el-icon>
+              </div>
+              <div class="benefit-body">
+                <div class="benefit-title">
+                  {{ b.title }}
+                  <el-tag v-if="b.minPoints > 0" size="small" type="warning" effect="plain" class="benefit-points">
+                    {{ b.minPoints }} 积分以上
+                  </el-tag>
+                </div>
+                <div class="benefit-desc" v-html="b.description"></div>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="下一等级暂无已发布的权益" :image-size="80" />
+        </template>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -446,7 +523,7 @@ import { useMemberStore } from '../stores/member';
 import { useTagStore } from '../stores/tag';
 import dayjs from 'dayjs';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Search, PriceTag, CaretTop, CaretBottom } from '@element-plus/icons-vue';
+import { Plus, Search, PriceTag, CaretTop, CaretBottom, Coin, Medal, TrendCharts, Lock, Star } from '@element-plus/icons-vue';
 
 const memberStore = useMemberStore();
 const tagStore = useTagStore();
@@ -460,10 +537,12 @@ const selectedMembers = ref([]);
 const showAddDialog = ref(false);
 const showTagBindDialog = ref(false);
 const showBatchTagDialog = ref(false);
+const showBenefitsDialog = ref(false);
 const isEdit = ref(false);
 const submitting = ref(false);
 const binding = ref(false);
 const batchApplying = ref(false);
+const benefitsLoading = ref(false);
 const formRef = ref(null);
 const tableRef = ref(null);
 
@@ -473,6 +552,8 @@ const bindingRemark = ref('');
 const batchTagId = ref(null);
 const batchRemark = ref('');
 const formTagIds = ref([]);
+const viewingMember = ref(null);
+const memberBenefitsData = ref(null);
 
 const form = reactive({
   id: null,
@@ -564,6 +645,20 @@ const handleEdit = (row) => {
 const handleDelete = async (id) => {
   await memberStore.deleteMember(id);
   ElMessage.success('删除成功');
+};
+
+const openBenefitsDialog = async (row) => {
+  viewingMember.value = row;
+  showBenefitsDialog.value = true;
+  benefitsLoading.value = true;
+  memberBenefitsData.value = null;
+  try {
+    memberBenefitsData.value = await memberStore.fetchMemberBenefits(row.id);
+  } catch (e) {
+    ElMessage.error('获取会员权益失败');
+  } finally {
+    benefitsLoading.value = false;
+  }
 };
 
 const resetForm = () => {
@@ -901,5 +996,139 @@ onMounted(async () => {
   height: 6px;
   border-radius: 50%;
   margin-right: 4px;
+}
+
+.member-benefits {
+  padding: 4px 0;
+}
+
+.member-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.member-info-detail {
+  flex: 1;
+}
+
+.member-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.member-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.member-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.divider-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.divider-next {
+  color: #7c3aed;
+}
+
+.benefit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.benefit-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.benefit-card:hover {
+  border-color: #cbd5e1;
+  background: #fff;
+}
+
+.benefit-card-next {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+  opacity: 0.85;
+}
+
+.benefit-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.benefit-lock {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #f3e8ff;
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.benefit-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.benefit-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.benefit-points {
+  font-weight: 500;
+}
+
+.benefit-desc {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.benefit-desc :deep(img) {
+  max-width: 100%;
 }
 </style>

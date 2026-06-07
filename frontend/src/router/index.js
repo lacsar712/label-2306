@@ -83,6 +83,12 @@ const router = createRouter({
           name: 'BirthdayConfig',
           component: () => import('../views/BirthdayConfig.vue'),
         },
+        {
+          path: 'level-benefits',
+          name: 'LevelBenefits',
+          component: () => import('../views/LevelBenefits.vue'),
+          meta: { requiresAdmin: true }
+        },
       ],
     },
   ],

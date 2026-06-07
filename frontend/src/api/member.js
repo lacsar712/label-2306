@@ -23,3 +23,11 @@ export function deleteMember(id) {
 export function getMemberStats() {
   return request.get('/stats');
 }
+
+export function getMemberTransactions(id, params) {
+  return request.get(`/members/${id}/transactions`, { params });
+}
+
+export function getMemberBenefits(id) {
+  return request.get(`/members/${id}/benefits`);
+}

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import api from '../api/axios';
+import { getMemberBenefits } from '../api/member';
 
 export const useMemberStore = defineStore('member', {
   state: () => ({
@@ -14,6 +15,7 @@ export const useMemberStore = defineStore('member', {
       levelStats: [],
       totalPoints: 0
     },
+    currentMemberBenefits: null,
     loading: false
   }),
   actions: {
@@ -36,6 +38,16 @@ export const useMemberStore = defineStore('member', {
         this.stats = data;
       } catch (error) {
         console.error('Failed to fetch stats', error);
+      }
+    },
+    async fetchMemberBenefits(memberId) {
+      try {
+        const data = await getMemberBenefits(memberId);
+        this.currentMemberBenefits = data;
+        return data;
+      } catch (error) {
+        console.error('Failed to fetch member benefits', error);
+        return null;
       }
     },
     async addMember(member) {

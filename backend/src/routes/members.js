@@ -7,6 +7,7 @@ const { MemberSchema, PointsUpdateSchema, FreezePointsSchema, MemberListWithTags
 const { z } = require('zod');
 const { createTransaction } = require('../services/pointsTransaction');
 const { createAuditLog } = require('../services/auditLog');
+const { getMemberBenefits } = require('../services/levelBenefitService');
 
 // Get all members
 router.get('/', authenticate, async (req, res) => {
@@ -396,7 +397,7 @@ router.post('/:id/unfreeze', authenticate, async (req, res) => {
   }
 });
 
-// Get member points transactions
+// Get member transactions
 router.get('/:id/transactions', authenticate, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -424,6 +425,21 @@ router.get('/:id/transactions', authenticate, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error fetching member transactions', { id: req.params.id, error: error.message });
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get member level benefits
+router.get('/:id/benefits', authenticate, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const member = await prisma.member.findUnique({ where: { id } });
+    if (!member) return res.status(404).json({ error: '会员不存在' });
+
+    const benefits = await getMemberBenefits(member);
+    res.json(benefits);
+  } catch (error) {
+    logger.error('Error fetching member benefits', { id: req.params.id, error: error.message });
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

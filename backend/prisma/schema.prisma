@@ -32,6 +32,8 @@ model User {
   operatedBirthdayCareConfigs BirthdayCareConfig[]
   operatedBirthdayCareRecords BirthdayCareRecord[]
   operatedShopProducts ShopProduct[]
+  operatedLevelBenefits LevelBenefit[]
+  operatedLevelBenefitVersions LevelBenefitVersion[]
 
   @@map("users")
 }
@@ -618,6 +620,12 @@ enum AuditActionType {
   EXCHANGE_ORDER_CREATE
   EXCHANGE_ORDER_STATUS_CHANGE
   EXCHANGE_ORDER_CANCEL
+  LEVEL_BENEFIT_CREATE
+  LEVEL_BENEFIT_UPDATE
+  LEVEL_BENEFIT_DELETE
+  LEVEL_BENEFIT_REORDER
+  LEVEL_BENEFIT_COPY
+  LEVEL_BENEFIT_STATUS_CHANGE
   OTHER
 }
 
@@ -638,6 +646,7 @@ enum AuditEntityType {
   SHOP_CATEGORY
   SHOP_PRODUCT
   EXCHANGE_RECORD
+  LEVEL_BENEFIT
 }
 
 enum ExportStatus {
@@ -860,4 +869,58 @@ model BirthdayCareRecord {
   @@index([result])
   @@index([createdAt])
   @@map("birthday_care_records")
+}
+
+enum LevelBenefitStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+}
+
+model LevelBenefit {
+  id            Int               @id @default(autoincrement())
+  title         String
+  description   String            @db.Text
+  icon          String?
+  level         MemberLevel
+  sortOrder     Int               @default(0) @map("sort_order")
+  minPoints     Int               @default(0) @map("min_points")
+  isEnabled     Boolean           @default(true) @map("is_enabled")
+  status        LevelBenefitStatus @default(DRAFT)
+  operatorId    Int?              @map("operator_id")
+  operator      User?             @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  versions      LevelBenefitVersion[]
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  @@index([level])
+  @@index([status])
+  @@index([sortOrder])
+  @@index([createdAt])
+  @@map("level_benefits")
+}
+
+model LevelBenefitVersion {
+  id           Int               @id @default(autoincrement())
+  benefitId    Int               @map("benefit_id")
+  benefit      LevelBenefit      @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+  version      Int               @default(1)
+  title        String
+  description  String            @db.Text
+  icon         String?
+  level        MemberLevel
+  sortOrder    Int               @default(0) @map("sort_order")
+  minPoints    Int               @default(0) @map("min_points")
+  isEnabled    Boolean           @default(true) @map("is_enabled")
+  status       LevelBenefitStatus @default(DRAFT)
+  changeRemark String?           @map("change_remark") @db.Text
+  operatorId   Int?              @map("operator_id")
+  operator     User?             @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([benefitId])
+  @@index([version])
+  @@index([createdAt])
+  @@unique([benefitId, version])
+  @@map("level_benefit_versions")
 }

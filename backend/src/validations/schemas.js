@@ -420,6 +420,44 @@ const ExchangeRecordQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
 });
 
+const LevelBenefitCreateSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().min(1),
+  icon: z.string().max(200).optional().nullable(),
+  level: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']),
+  sortOrder: z.coerce.number().int().optional().default(0),
+  minPoints: z.coerce.number().int().nonnegative().optional().default(0),
+  isEnabled: z.boolean().optional().default(true),
+});
+
+const LevelBenefitUpdateSchema = LevelBenefitCreateSchema.partial();
+
+const LevelBenefitStatusSchema = z.object({
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED']),
+  remark: z.string().optional().nullable(),
+});
+
+const LevelBenefitQuerySchema = z.object({
+  level: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']).optional(),
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED']).optional(),
+  isEnabled: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(100),
+});
+
+const LevelBenefitReorderSchema = z.object({
+  items: z.array(z.object({
+    id: z.coerce.number().int(),
+    sortOrder: z.coerce.number().int(),
+  })),
+});
+
+const LevelBenefitCopySchema = z.object({
+  sourceId: z.coerce.number().int(),
+  targetLevel: z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM']),
+  withSortOrder: z.boolean().optional().default(false),
+});
+
 module.exports = {
   MemberSchema,
   PointsUpdateSchema,
@@ -476,4 +514,10 @@ module.exports = {
   ExchangeCreateSchema,
   ExchangeStatusSchema,
   ExchangeRecordQuerySchema,
+  LevelBenefitCreateSchema,
+  LevelBenefitUpdateSchema,
+  LevelBenefitStatusSchema,
+  LevelBenefitQuerySchema,
+  LevelBenefitReorderSchema,
+  LevelBenefitCopySchema,
 };
