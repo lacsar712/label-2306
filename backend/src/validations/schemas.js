@@ -55,6 +55,60 @@ const FreezePointsSchema = z.object({
   remark: z.string().optional().nullable(),
 });
 
+const TagGroupSchema = z.object({
+  name: z.string().min(1).max(50),
+  description: z.string().max(200).optional().nullable(),
+  sortOrder: z.number().int().optional().default(0),
+});
+
+const TagGroupUpdateSchema = TagGroupSchema.partial();
+
+const TagRuleConditionSchema = z.object({
+  field: z.enum(['POINTS', 'LEVEL', 'STATUS', 'JOIN_DATE', 'LAST_ACTIVE_DATE', 'CONSUME_COUNT', 'CONSUME_AMOUNT']),
+  operator: z.enum(['EQ', 'NE', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'CONTAINS', 'IN']),
+  value: z.any(),
+});
+
+const TagSchema = z.object({
+  name: z.string().min(1).max(50),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#409EFF'),
+  description: z.string().max(500).optional().nullable(),
+  groupId: z.number().int().optional().nullable(),
+  isMutuallyExclusive: z.boolean().optional().default(false),
+  uniqueInGroup: z.boolean().optional().default(false),
+  autoRuleEnabled: z.boolean().optional().default(false),
+  ruleLogic: z.enum(['AND', 'OR']).optional().nullable(),
+  ruleConditions: z.array(TagRuleConditionSchema).optional().nullable(),
+});
+
+const TagUpdateSchema = TagSchema.partial();
+
+const MemberTagBindSchema = z.object({
+  tagIds: z.array(z.number().int()),
+  remark: z.string().optional().nullable(),
+});
+
+const MemberTagUnbindSchema = z.object({
+  tagIds: z.array(z.number().int()),
+  remark: z.string().optional().nullable(),
+});
+
+const BatchTagApplySchema = z.object({
+  tagId: z.number().int(),
+  memberIds: z.array(z.number().int()),
+  remark: z.string().optional().nullable(),
+});
+
+const MemberListWithTagsSchema = z.object({
+  search: z.string().optional(),
+  level: z.string().optional(),
+  status: z.string().optional(),
+  tagIds: z.string().optional(),
+  tagLogic: z.enum(['AND', 'OR']).optional().default('AND'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
 module.exports = {
   MemberSchema,
   PointsUpdateSchema,
@@ -63,4 +117,13 @@ module.exports = {
   TransactionQuerySchema,
   ReverseTransactionSchema,
   FreezePointsSchema,
+  TagGroupSchema,
+  TagGroupUpdateSchema,
+  TagSchema,
+  TagUpdateSchema,
+  TagRuleConditionSchema,
+  MemberTagBindSchema,
+  MemberTagUnbindSchema,
+  BatchTagApplySchema,
+  MemberListWithTagsSchema,
 };

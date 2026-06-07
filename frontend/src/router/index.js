@@ -37,6 +37,11 @@ const router = createRouter({
           component: () => import('../views/Transactions.vue'),
         },
         {
+          path: 'tags',
+          name: 'Tags',
+          component: () => import('../views/TagManagement.vue'),
+        },
+        {
           path: 'system',
           name: 'System',
           component: () => import('../views/SystemManagement.vue'),

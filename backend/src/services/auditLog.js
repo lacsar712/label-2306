@@ -20,6 +20,15 @@ const DEFAULT_AUDIT_CONFIGS = [
   { actionType: 'SYSTEM_CONFIG', sensitivityLevel: 'CRITICAL', description: '系统配置修改' },
   { actionType: 'TRANSACTION_REVERSE', sensitivityLevel: 'HIGH', description: '流水冲正' },
   { actionType: 'BATCH_OPERATION', sensitivityLevel: 'MEDIUM', description: '批量操作' },
+  { actionType: 'TAG_GROUP_CREATE', sensitivityLevel: 'MEDIUM', description: '标签分组创建' },
+  { actionType: 'TAG_GROUP_UPDATE', sensitivityLevel: 'MEDIUM', description: '标签分组更新' },
+  { actionType: 'TAG_GROUP_DELETE', sensitivityLevel: 'MEDIUM', description: '标签分组删除' },
+  { actionType: 'TAG_CREATE', sensitivityLevel: 'MEDIUM', description: '标签创建' },
+  { actionType: 'TAG_UPDATE', sensitivityLevel: 'MEDIUM', description: '标签更新' },
+  { actionType: 'TAG_DELETE', sensitivityLevel: 'MEDIUM', description: '标签删除' },
+  { actionType: 'MEMBER_TAG_BIND', sensitivityLevel: 'MEDIUM', description: '会员标签绑定' },
+  { actionType: 'MEMBER_TAG_UNBIND', sensitivityLevel: 'MEDIUM', description: '会员标签解绑' },
+  { actionType: 'TAG_RULE_APPLY', sensitivityLevel: 'MEDIUM', description: '标签规则执行' },
   { actionType: 'OTHER', sensitivityLevel: 'LOW', description: '其他操作' },
 ];
 

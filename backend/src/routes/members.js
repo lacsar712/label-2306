@@ -3,7 +3,7 @@ const router = express.Router();
 const prisma = require('../utils/prisma');
 const logger = require('../utils/logger');
 const { authenticate } = require('../middleware/auth');
-const { MemberSchema, PointsUpdateSchema, FreezePointsSchema } = require('../validations/schemas');
+const { MemberSchema, PointsUpdateSchema, FreezePointsSchema, MemberListWithTagsSchema } = require('../validations/schemas');
 const { z } = require('zod');
 const { createTransaction } = require('../services/pointsTransaction');
 const { createAuditLog } = require('../services/auditLog');
@@ -11,7 +11,11 @@ const { createAuditLog } = require('../services/auditLog');
 // Get all members
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { search, level, status } = req.query;
+    const validated = MemberListWithTagsSchema.safeParse(req.query);
+    if (!validated.success) {
+      return res.status(400).json({ error: validated.error.errors });
+    }
+    const { search, level, status, tagIds, tagLogic, page, pageSize } = validated.data;
     const where = {};
     
     if (search) {
@@ -23,11 +27,41 @@ router.get('/', authenticate, async (req, res) => {
     if (level) where.level = level;
     if (status) where.status = status;
 
-    const members = await prisma.member.findMany({
-      where,
-      orderBy: { joinDate: 'desc' }
+    if (tagIds) {
+      const tagIdArray = tagIds.split(',').map(Number).filter(n => !isNaN(n));
+      if (tagIdArray.length > 0) {
+        if (tagLogic === 'OR') {
+          where.memberTags = { some: { tagId: { in: tagIdArray } } };
+        } else {
+          where.AND = tagIdArray.map(tid => ({
+            memberTags: { some: { tagId: tid } }
+          }));
+        }
+      }
+    }
+
+    const [members, total] = await Promise.all([
+      prisma.member.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { joinDate: 'desc' },
+        include: {
+          memberTags: {
+            include: { tag: { include: { group: true } } }
+          }
+        }
+      }),
+      prisma.member.count({ where })
+    ]);
+
+    res.json({
+      list: members,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     });
-    res.json(members);
   } catch (error) {
     logger.error('Error fetching members', { error: error.message });
     res.status(500).json({ error: 'Internal Server Error' });

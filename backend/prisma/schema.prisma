@@ -16,6 +16,8 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   operatedTxs   PointsTransaction[]
+  operatedMemberTags MemberTag[]
+  operatedTagHistories TagBindingHistory[]
 
   @@map("users")
 }
@@ -32,6 +34,8 @@ model Member {
   joinDate      DateTime @default(now())
   updatedAt     DateTime @updatedAt
   transactions  PointsTransaction[]
+  memberTags    MemberTag[]
+  tagHistories  TagBindingHistory[]
 
   @@map("members")
 }
@@ -120,6 +124,15 @@ enum AuditActionType {
   SYSTEM_CONFIG
   TRANSACTION_REVERSE
   BATCH_OPERATION
+  TAG_GROUP_CREATE
+  TAG_GROUP_UPDATE
+  TAG_GROUP_DELETE
+  TAG_CREATE
+  TAG_UPDATE
+  TAG_DELETE
+  MEMBER_TAG_BIND
+  MEMBER_TAG_UNBIND
+  TAG_RULE_APPLY
   OTHER
 }
 
@@ -131,6 +144,112 @@ enum AuditEntityType {
   BLACKLIST
   SYSTEM
   AUDIT_CONFIG
+  TAG_GROUP
+  TAG
+  MEMBER_TAG
+}
+
+model TagGroup {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  sortOrder   Int       @default(0) @map("sort_order")
+  tags        Tag[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("tag_groups")
+}
+
+enum TagRuleOperator {
+  EQ
+  NE
+  GT
+  GTE
+  LT
+  LTE
+  BETWEEN
+  CONTAINS
+  IN
+}
+
+enum TagRuleField {
+  POINTS
+  LEVEL
+  STATUS
+  JOIN_DATE
+  LAST_ACTIVE_DATE
+  CONSUME_COUNT
+  CONSUME_AMOUNT
+}
+
+enum TagRuleLogic {
+  AND
+  OR
+}
+
+model Tag {
+  id            Int       @id @default(autoincrement())
+  name          String
+  color         String    @default("#409EFF")
+  description   String?
+  groupId       Int?      @map("group_id")
+  group         TagGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  isMutuallyExclusive Boolean @default(false) @map("is_mutually_exclusive")
+  uniqueInGroup Boolean   @default(false) @map("unique_in_group")
+  autoRuleEnabled Boolean @default(false) @map("auto_rule_enabled")
+  ruleLogic     TagRuleLogic? @map("rule_logic")
+  ruleConditions Json?    @map("rule_conditions")
+  memberTags    MemberTag[]
+  tagHistories  TagBindingHistory[]
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([groupId])
+  @@map("tags")
+}
+
+enum MemberTagSource {
+  MANUAL
+  AUTO_RULE
+  BATCH
+}
+
+model MemberTag {
+  id         Int              @id @default(autoincrement())
+  memberId   Int              @map("member_id")
+  member     Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  tagId      Int              @map("tag_id")
+  tag        Tag              @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  source     MemberTagSource  @default(MANUAL)
+  operatorId Int?             @map("operator_id")
+  operator   User?            @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  remark     String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@unique([memberId, tagId])
+  @@index([memberId])
+  @@index([tagId])
+  @@map("member_tags")
+}
+
+model TagBindingHistory {
+  id         Int              @id @default(autoincrement())
+  memberId   Int              @map("member_id")
+  member     Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  tagId      Int              @map("tag_id")
+  tag        Tag              @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  action     String           // BIND or UNBIND
+  source     MemberTagSource  @default(MANUAL)
+  operatorId Int?             @map("operator_id")
+  operator   User?            @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  remark     String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@index([memberId])
+  @@index([tagId])
+  @@index([createdAt])
+  @@map("tag_binding_histories")
 }
 
 enum AuditSensitivityLevel {
