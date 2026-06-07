@@ -100,3 +100,90 @@ model PointsTransaction {
   @@index([createdAt])
   @@map("points_transactions")
 }
+
+enum AuditActionType {
+  MEMBER_CREATE
+  MEMBER_UPDATE
+  MEMBER_DELETE
+  POINTS_ADJUST
+  POINTS_FREEZE
+  POINTS_UNFREEZE
+  USER_CREATE
+  USER_UPDATE
+  USER_DELETE
+  AUTH_LOGIN
+  AUTH_LOGOUT
+  COUPON_ISSUE
+  BLACKLIST_ADD
+  BLACKLIST_REMOVE
+  DATA_EXPORT
+  SYSTEM_CONFIG
+  TRANSACTION_REVERSE
+  BATCH_OPERATION
+  OTHER
+}
+
+enum AuditEntityType {
+  MEMBER
+  USER
+  POINTS_TRANSACTION
+  COUPON
+  BLACKLIST
+  SYSTEM
+  AUDIT_CONFIG
+}
+
+enum AuditSensitivityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AuditResultStatus {
+  SUCCESS
+  FAILURE
+  PARTIAL
+}
+
+model AuditLog {
+  id                 BigInt              @id @default(autoincrement())
+  operatorId         Int?                @map("operator_id")
+  operatorUsername   String?             @map("operator_username")
+  actionType         AuditActionType     @map("action_type")
+  entityType         AuditEntityType     @map("entity_type")
+  entityId           String?             @map("entity_id")
+  beforeSnapshot     Json?               @map("before_snapshot")
+  afterSnapshot      Json?               @map("after_snapshot")
+  requestIp          String?             @map("request_ip")
+  userAgent          String?             @map("user_agent") @db.Text
+  requestPath        String?             @map("request_path")
+  requestMethod      String?             @map("request_method")
+  requestParams      Json?               @map("request_params")
+  remark             String?             @db.Text
+  sensitivityLevel   AuditSensitivityLevel @default(MEDIUM) @map("sensitivity_level")
+  resultStatus       AuditResultStatus   @default(SUCCESS) @map("result_status")
+  errorMessage       String?             @map("error_message") @db.Text
+  durationMs         Int?                @map("duration_ms")
+  createdAt          DateTime            @default(now()) @map("created_at")
+
+  @@index([operatorId])
+  @@index([actionType])
+  @@index([entityType, entityId])
+  @@index([sensitivityLevel])
+  @@index([resultStatus])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AuditConfig {
+  id                 Int                 @id @default(autoincrement())
+  actionType         AuditActionType     @unique @map("action_type")
+  enabled            Boolean             @default(true)
+  sensitivityLevel   AuditSensitivityLevel @default(MEDIUM) @map("sensitivity_level")
+  description        String?
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  updatedBy          Int?                @map("updated_by")
+
+  @@map("audit_configs")
+}

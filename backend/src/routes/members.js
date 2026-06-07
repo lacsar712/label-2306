@@ -6,6 +6,7 @@ const { authenticate } = require('../middleware/auth');
 const { MemberSchema, PointsUpdateSchema, FreezePointsSchema } = require('../validations/schemas');
 const { z } = require('zod');
 const { createTransaction } = require('../services/pointsTransaction');
+const { createAuditLog } = require('../services/auditLog');
 
 // Get all members
 router.get('/', authenticate, async (req, res) => {
@@ -35,6 +36,7 @@ router.get('/', authenticate, async (req, res) => {
 
 // Create member
 router.post('/', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const validatedData = MemberSchema.parse(req.body);
     const member = await prisma.member.create({
@@ -55,8 +57,31 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'MEMBER_CREATE',
+      entityType: 'MEMBER',
+      entityId: member.id,
+      afterSnapshot: member,
+      req,
+      remark: `创建会员: ${member.name}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.status(201).json(member);
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'MEMBER_CREATE',
+      entityType: 'MEMBER',
+      req,
+      remark: '创建会员失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
@@ -70,15 +95,43 @@ router.post('/', authenticate, async (req, res) => {
 
 // Update member
 router.put('/:id', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const id = parseInt(req.params.id);
+    const beforeMember = await prisma.member.findUnique({ where: { id } });
     const validatedData = MemberSchema.partial().parse(req.body);
     const member = await prisma.member.update({
       where: { id },
       data: validatedData
     });
+
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'MEMBER_UPDATE',
+      entityType: 'MEMBER',
+      entityId: id,
+      beforeSnapshot: beforeMember,
+      afterSnapshot: member,
+      req,
+      remark: `更新会员: ${member.name}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.json(member);
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'MEMBER_UPDATE',
+      entityType: 'MEMBER',
+      entityId: req.params.id,
+      req,
+      remark: '更新会员失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
@@ -89,13 +142,40 @@ router.put('/:id', authenticate, async (req, res) => {
 
 // Delete member
 router.delete('/:id', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const id = parseInt(req.params.id);
+    const beforeMember = await prisma.member.findUnique({ where: { id } });
     await prisma.member.delete({
       where: { id }
     });
+
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'MEMBER_DELETE',
+      entityType: 'MEMBER',
+      entityId: id,
+      beforeSnapshot: beforeMember,
+      req,
+      remark: `删除会员: ${beforeMember?.name || 'ID=' + id}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.status(204).send();
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'MEMBER_DELETE',
+      entityType: 'MEMBER',
+      entityId: req.params.id,
+      req,
+      remark: '删除会员失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     logger.error('Error deleting member', { id: req.params.id, error: error.message });
     res.status(500).json({ error: 'Internal Server Error' });
   }
@@ -103,6 +183,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 
 // Update member points (with transaction recording)
 router.post('/:id/points', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const id = parseInt(req.params.id);
     const { points, reasonType, bizOrderNo, bizOrderType, remark } = PointsUpdateSchema.parse(req.body);
@@ -110,6 +191,8 @@ router.post('/:id/points', authenticate, async (req, res) => {
     if (points === 0) {
       return res.status(400).json({ error: 'Points change cannot be zero' });
     }
+
+    const beforeMember = await prisma.member.findUnique({ where: { id } });
 
     const transaction = await createTransaction({
       memberId: id,
@@ -123,8 +206,33 @@ router.post('/:id/points', authenticate, async (req, res) => {
 
     const member = await prisma.member.findUnique({ where: { id } });
 
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'POINTS_ADJUST',
+      entityType: 'MEMBER',
+      entityId: id,
+      beforeSnapshot: beforeMember,
+      afterSnapshot: { ...member, pointsChange: points },
+      req,
+      remark: `${points > 0 ? '增加' : '扣除'}积分 ${Math.abs(points)} | ${remark || reasonType || 'MANUAL_ADJUST'}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.json({ member, transaction });
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'POINTS_ADJUST',
+      entityType: 'MEMBER',
+      entityId: req.params.id,
+      req,
+      remark: '积分调整失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
@@ -138,9 +246,12 @@ router.post('/:id/points', authenticate, async (req, res) => {
 
 // Freeze member points
 router.post('/:id/freeze', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const id = parseInt(req.params.id);
     const { points, reasonType, bizOrderNo, bizOrderType, remark } = FreezePointsSchema.parse(req.body);
+
+    const beforeMember = await prisma.member.findUnique({ where: { id } });
 
     const transaction = await createTransaction({
       memberId: id,
@@ -154,8 +265,33 @@ router.post('/:id/freeze', authenticate, async (req, res) => {
 
     const member = await prisma.member.findUnique({ where: { id } });
 
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'POINTS_FREEZE',
+      entityType: 'MEMBER',
+      entityId: id,
+      beforeSnapshot: beforeMember,
+      afterSnapshot: { ...member, frozenPointsChange: points },
+      req,
+      remark: `冻结积分 ${points} | ${remark || reasonType || 'FREEZE_OP'}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.json({ member, transaction });
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'POINTS_FREEZE',
+      entityType: 'MEMBER',
+      entityId: req.params.id,
+      req,
+      remark: '积分冻结失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
@@ -169,9 +305,12 @@ router.post('/:id/freeze', authenticate, async (req, res) => {
 
 // Unfreeze member points
 router.post('/:id/unfreeze', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const id = parseInt(req.params.id);
     const { points, reasonType, bizOrderNo, bizOrderType, remark } = FreezePointsSchema.parse(req.body);
+
+    const beforeMember = await prisma.member.findUnique({ where: { id } });
 
     const transaction = await createTransaction({
       memberId: id,
@@ -185,8 +324,33 @@ router.post('/:id/unfreeze', authenticate, async (req, res) => {
 
     const member = await prisma.member.findUnique({ where: { id } });
 
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'POINTS_UNFREEZE',
+      entityType: 'MEMBER',
+      entityId: id,
+      beforeSnapshot: beforeMember,
+      afterSnapshot: { ...member, frozenPointsChange: -points },
+      req,
+      remark: `解冻积分 ${points} | ${remark || reasonType || 'UNFREEZE_OP'}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.json({ member, transaction });
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'POINTS_UNFREEZE',
+      entityType: 'MEMBER',
+      entityId: req.params.id,
+      req,
+      remark: '积分解冻失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }

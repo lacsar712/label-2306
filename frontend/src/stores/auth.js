@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import axios from 'axios';
+import axios from '../api/axios';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -16,8 +16,8 @@ export const useAuthStore = defineStore('auth', {
     async login(username, password) {
       try {
         const response = await axios.post(`${API_URL}/auth/login`, { username, password });
-        this.token = response.data.token;
-        this.user = response.data.user;
+        this.token = response.token;
+        this.user = response.user;
         localStorage.setItem('token', this.token);
         localStorage.setItem('user', JSON.stringify(this.user));
         return true;
@@ -25,7 +25,12 @@ export const useAuthStore = defineStore('auth', {
         throw error.response?.data?.error || '登录失败';
       }
     },
-    logout() {
+    async logout() {
+      try {
+        await axios.post(`${API_URL}/auth/logout`);
+      } catch (e) {
+        // ignore
+      }
       this.token = null;
       this.user = null;
       localStorage.removeItem('token');

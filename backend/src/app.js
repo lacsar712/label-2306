@@ -5,6 +5,7 @@ const userRoutes = require('./routes/users');
 const memberRoutes = require('./routes/members');
 const systemRoutes = require('./routes/system');
 const transactionRoutes = require('./routes/transactions');
+const auditLogRoutes = require('./routes/auditLogs');
 const logger = require('./utils/logger');
 
 const app = express();
@@ -17,6 +18,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api', systemRoutes); 
 
 // Global Error Handler

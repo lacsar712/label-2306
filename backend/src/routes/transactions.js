@@ -13,6 +13,7 @@ const {
   exportTransactionsToCsv,
   createTransaction,
 } = require('../services/pointsTransaction');
+const { createAuditLog } = require('../services/auditLog');
 
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -42,15 +43,43 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 router.post('/:id/reverse', authenticate, isAdmin, async (req, res) => {
+  const startTime = Date.now();
   try {
     const { remark } = ReverseTransactionSchema.parse(req.body);
+    const beforeTx = await getTransactionById(req.params.id);
     const reversedTx = await reverseTransaction(
       parseInt(req.params.id),
       req.user?.id || null,
       remark || null
     );
+
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'TRANSACTION_REVERSE',
+      entityType: 'POINTS_TRANSACTION',
+      entityId: req.params.id,
+      beforeSnapshot: beforeTx,
+      afterSnapshot: reversedTx,
+      req,
+      remark: `冲正流水: ${beforeTx?.serialNo || 'ID=' + req.params.id} | ${remark || ''}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.json(reversedTx);
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'TRANSACTION_REVERSE',
+      entityType: 'POINTS_TRANSACTION',
+      entityId: req.params.id,
+      req,
+      remark: '冲正流水失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
@@ -85,6 +114,7 @@ router.get('/stats/reason', authenticate, async (req, res) => {
 });
 
 router.get('/export/csv', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const filters = TransactionQuerySchema.parse(req.query);
     const csvContent = await exportTransactionsToCsv(filters);
@@ -93,7 +123,28 @@ router.get('/export/csv', authenticate, async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csvContent);
+
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'DATA_EXPORT',
+      entityType: 'POINTS_TRANSACTION',
+      req,
+      remark: '导出积分流水 CSV',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'DATA_EXPORT',
+      entityType: 'POINTS_TRANSACTION',
+      req,
+      remark: '导出积分流水 CSV 失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
@@ -103,6 +154,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
 });
 
 router.post('/batch/sign-in', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const { memberIds, points = 10, remark } = req.body;
     if (!Array.isArray(memberIds) || memberIds.length === 0) {
@@ -125,14 +177,37 @@ router.post('/batch/sign-in', authenticate, async (req, res) => {
       }
     }
 
+    const successCount = results.filter(r => r.success).length;
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'BATCH_OPERATION',
+      entityType: 'MEMBER',
+      req,
+      remark: `批量签到奖励: ${memberIds.length} 人, 成功 ${successCount} 人, 积分 +${points}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: successCount === memberIds.length ? 'SUCCESS' : (successCount === 0 ? 'FAILURE' : 'PARTIAL'),
+    });
+
     res.json({ results });
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'BATCH_OPERATION',
+      entityType: 'MEMBER',
+      req,
+      remark: '批量签到奖励失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     logger.error('Error batch sign-in reward', { error: error.message });
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
 router.post('/batch/activity', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const { memberIds, points, activityNo, remark } = req.body;
     if (!Array.isArray(memberIds) || memberIds.length === 0) {
@@ -160,14 +235,37 @@ router.post('/batch/activity', authenticate, async (req, res) => {
       }
     }
 
+    const successCount = results.filter(r => r.success).length;
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'BATCH_OPERATION',
+      entityType: 'MEMBER',
+      req,
+      remark: `批量活动加成: ${memberIds.length} 人, 成功 ${successCount} 人, 活动号 ${activityNo || ''}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: successCount === memberIds.length ? 'SUCCESS' : (successCount === 0 ? 'FAILURE' : 'PARTIAL'),
+    });
+
     res.json({ results });
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'BATCH_OPERATION',
+      entityType: 'MEMBER',
+      req,
+      remark: '批量活动加成失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     logger.error('Error batch activity bonus', { error: error.message });
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
 router.post('/batch/exchange', authenticate, async (req, res) => {
+  const startTime = Date.now();
   try {
     const { memberId, points, exchangeNo, remark } = req.body;
     if (!memberId || !points || points >= 0) {
@@ -184,8 +282,32 @@ router.post('/batch/exchange', authenticate, async (req, res) => {
       remark: remark || '商城兑换',
     });
 
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'BATCH_OPERATION',
+      entityType: 'MEMBER',
+      entityId: memberId,
+      afterSnapshot: tx,
+      req,
+      remark: `商城兑换: 会员 ${memberId}, 扣除 ${Math.abs(points)} 积分, 兑换号 ${exchangeNo || ''}`,
+      durationMs: Date.now() - startTime,
+      resultStatus: 'SUCCESS',
+    });
+
     res.json({ transaction: tx });
   } catch (error) {
+    await createAuditLog({
+      operator: req.user,
+      actionType: 'BATCH_OPERATION',
+      entityType: 'MEMBER',
+      entityId: req.body?.memberId,
+      req,
+      remark: '商城兑换失败',
+      durationMs: Date.now() - startTime,
+      resultStatus: 'FAILURE',
+      errorMessage: error.message,
+    });
+
     if (error.status) {
       return res.status(error.status).json({ error: error.message });
     }

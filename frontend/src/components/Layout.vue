@@ -26,6 +26,10 @@
           <el-icon><Setting /></el-icon>
           <span>系统管理</span>
         </el-menu-item>
+        <el-menu-item v-if="authStore.isAdmin" index="/audit-logs">
+          <el-icon><Document /></el-icon>
+          <span>操作审计</span>
+        </el-menu-item>
       </el-menu>
       <div class="sidebar-footer">
         <el-button link @click="handleLogout" class="logout-btn">
@@ -67,7 +71,7 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets } from '@element-plus/icons-vue';
+import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets, Document } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 const route = useRoute();
@@ -81,6 +85,7 @@ const currentPageName = computed(() => {
   if (route.path === '/points') return '会员积分';
   if (route.path === '/transactions') return '积分流水';
   if (route.path === '/system') return '系统管理';
+  if (route.path === '/audit-logs') return '操作审计';
   return '';
 });
 
