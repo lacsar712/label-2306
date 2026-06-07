@@ -74,6 +74,11 @@ const router = createRouter({
           component: () => import('../views/DataExportCenter.vue'),
         },
         {
+          path: 'members/import',
+          name: 'MemberImport',
+          component: () => import('../views/MemberImport.vue'),
+        },
+        {
           path: 'birthdays',
           name: 'Birthdays',
           component: () => import('../views/Birthdays.vue'),

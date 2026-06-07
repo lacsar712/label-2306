@@ -18,6 +18,10 @@
           <el-icon><User /></el-icon>
           <span>会员列表</span>
         </el-menu-item>
+        <el-menu-item index="/members/import">
+          <el-icon><Upload /></el-icon>
+          <span>会员导入</span>
+        </el-menu-item>
         <el-menu-item index="/transactions">
           <el-icon><Tickets /></el-icon>
           <span>积分流水</span>
@@ -173,7 +177,7 @@ import { computed, ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useNotificationStore } from '../stores/notification';
-import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets, Document, PriceTag, Present, Bell, Search, Download, Cherry, Medal } from '@element-plus/icons-vue';
+import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets, Document, PriceTag, Present, Bell, Search, Download, Cherry, Medal, Upload } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import dayjs from 'dayjs';
 
@@ -199,6 +203,7 @@ const activeMenu = computed(() => route.path);
 const currentPageName = computed(() => {
   if (route.path === '/') return '数据概览';
   if (route.path === '/members') return '会员列表';
+  if (route.path.startsWith('/members/import')) return '会员导入';
   if (route.path === '/points') return '会员积分';
   if (route.path === '/transactions') return '积分流水';
   if (route.path === '/tags') return '会员标签';

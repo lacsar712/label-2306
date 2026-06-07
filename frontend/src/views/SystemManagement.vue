@@ -75,6 +75,37 @@
             </el-descriptions>
           </div>
         </el-tab-pane>
+
+        <el-tab-pane label="导入配置" name="import">
+          <div class="import-config">
+            <h3 class="tab-title">会员批量导入配置</h3>
+            <el-form :model="importConfig" label-width="200px" style="max-width: 600px; margin-top: 20px;">
+              <el-form-item label="单次导入上限（条）">
+                <el-input-number
+                  v-model="importConfig.maxImportLimit"
+                  :min="1"
+                  :max="100000"
+                  :step="100"
+                  style="width: 200px"
+                />
+                <span class="form-tip">单次导入文件最大允许的数据行数</span>
+              </el-form-item>
+              <el-form-item label="非管理员导入权限">
+                <el-switch
+                  v-model="importConfig.allowNonAdminImport"
+                  active-text="允许"
+                  inactive-text="禁止"
+                />
+                <span class="form-tip">关闭后仅 ADMIN 角色可执行批量导入</span>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="savingImportConfig" @click="handleSaveImportConfig">
+                  保存配置
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
 
@@ -119,6 +150,7 @@ import { useAuthStore } from '../stores/auth';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Platform, Cpu, Timer } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
+import { getImportConfig, updateImportConfig } from '../api/memberImport';
 
 const authStore = useAuthStore();
 const activeTab = ref('users');
@@ -129,6 +161,11 @@ const showUserDialog = ref(false);
 const isEditUser = ref(false);
 const submitting = ref(false);
 const userFormRef = ref(null);
+const importConfig = reactive({
+  maxImportLimit: 1000,
+  allowNonAdminImport: false,
+});
+const savingImportConfig = ref(false);
 
 const userForm = reactive({
   id: null,
@@ -171,6 +208,33 @@ const fetchSystemInfo = async () => {
     systemInfo.value = await api.get('/system/info');
   } catch (error) {
     console.error('Failed to fetch system info', error);
+  }
+};
+
+const fetchImportConfig = async () => {
+  try {
+    const res = await getImportConfig();
+    if (res.data) {
+      importConfig.maxImportLimit = res.data.maxImportLimit;
+      importConfig.allowNonAdminImport = res.data.allowNonAdminImport;
+    }
+  } catch (error) {
+    console.error('Failed to fetch import config', error);
+  }
+};
+
+const handleSaveImportConfig = async () => {
+  savingImportConfig.value = true;
+  try {
+    await updateImportConfig({
+      maxImportLimit: importConfig.maxImportLimit,
+      allowNonAdminImport: importConfig.allowNonAdminImport,
+    });
+    ElMessage.success('导入配置已保存');
+  } catch (e) {
+    ElMessage.error(e.response?.data?.error || '保存失败');
+  } finally {
+    savingImportConfig.value = false;
   }
 };
 
@@ -250,6 +314,7 @@ const formatUptime = (seconds) => {
 onMounted(() => {
   fetchUsers();
   fetchSystemInfo();
+  fetchImportConfig();
 });
 </script>
 
@@ -332,5 +397,15 @@ onMounted(() => {
   background-color: #f8fafc !important;
   color: #64748b;
   font-weight: 500;
+}
+
+.import-config {
+  padding: 10px 0;
+}
+
+.form-tip {
+  margin-left: 12px;
+  color: #909399;
+  font-size: 12px;
 }
 </style>

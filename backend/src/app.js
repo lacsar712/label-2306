@@ -13,6 +13,7 @@ const exportRoutes = require('./routes/exports');
 const birthdayRoutes = require('./routes/birthdays');
 const shopRoutes = require('./routes/shop');
 const levelBenefitRoutes = require('./routes/levelBenefits');
+const memberImportRoutes = require('./routes/memberImport');
 const logger = require('./utils/logger');
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/exports', exportRoutes);
 app.use('/api/birthdays', birthdayRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/level-benefits', levelBenefitRoutes);
+app.use('/api/members/import', memberImportRoutes);
 app.use('/api', systemRoutes); 
 
 // Global Error Handler

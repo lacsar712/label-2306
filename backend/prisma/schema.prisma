@@ -34,6 +34,7 @@ model User {
   operatedShopProducts ShopProduct[]
   operatedLevelBenefits LevelBenefit[]
   operatedLevelBenefitVersions LevelBenefitVersion[]
+  operatedImportBatches MemberImportBatch[]
 
   @@map("users")
 }
@@ -45,6 +46,7 @@ model Member {
   email         String?
   level         MemberLevel @default(NORMAL)
   status        MemberStatus @default(ACTIVE)
+  channel       MemberChannel @default(OTHER)
   points        Int      @default(0)
   frozenPoints  Int      @default(0) @map("frozen_points")
   birthday      Int?     @map("birthday")
@@ -61,6 +63,7 @@ model Member {
   signInRecords SignInRecord[]
   exchangeRecords ExchangeRecord[]
   birthdayCareRecords BirthdayCareRecord[]
+  importRecords MemberImportRecord[]
 
   @@map("members")
 }
@@ -875,6 +878,95 @@ enum LevelBenefitStatus {
   DRAFT
   PENDING_REVIEW
   PUBLISHED
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum ConflictStrategy {
+  SKIP
+  OVERWRITE
+  MARK_FOR_REVIEW
+}
+
+enum ImportRowStatus {
+  SUCCESS
+  SKIPPED
+  FAILED
+  PENDING_REVIEW
+}
+
+model MemberImportBatch {
+  id               Int              @id @default(autoincrement())
+  fileName         String
+  fileSize         Int?
+  totalCount       Int              @default(0)
+  successCount     Int              @default(0)
+  skippedCount     Int              @default(0)
+  failedCount      Int              @default(0)
+  pendingCount     Int              @default(0)
+  status           ImportStatus     @default(PENDING)
+  conflictStrategy ConflictStrategy @default(SKIP)
+  fieldMapping     Json?
+  progress         Int              @default(0)
+  errorMessage     String?          @db.Text
+  originalFilePath String?
+  operatorId       Int?             @map("operator_id")
+  operator         User?            @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  operatorUsername String?          @map("operator_username")
+  records          MemberImportRecord[]
+  startedAt        DateTime?        @map("started_at")
+  completedAt      DateTime?        @map("completed_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([operatorId])
+  @@index([createdAt])
+  @@map("member_import_batches")
+}
+
+model MemberImportRecord {
+  id          Int              @id @default(autoincrement())
+  batchId     Int              @map("batch_id")
+  batch       MemberImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  rowNumber   Int              @map("row_number")
+  rawData     Json
+  status      ImportRowStatus  @default(FAILED)
+  errorReason String?          @db.Text
+  memberId    Int?             @map("member_id")
+  member      Member?          @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([batchId])
+  @@index([status])
+  @@index([memberId])
+  @@map("member_import_records")
+}
+
+model ImportConfig {
+  id                    Int      @id @default(autoincrement())
+  maxImportLimit        Int      @default(1000) @map("max_import_limit")
+  allowNonAdminImport   Boolean  @default(false) @map("allow_non_admin_import")
+  updatedBy             Int?     @map("updated_by")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("import_configs")
+}
+
+enum MemberChannel {
+  ONLINE
+  OFFLINE
+  REFERRAL
+  PROMOTION
+  OTHER
 }
 
 model LevelBenefit {
