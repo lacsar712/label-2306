@@ -42,6 +42,11 @@ const router = createRouter({
           component: () => import('../views/TagManagement.vue'),
         },
         {
+          path: 'coupons',
+          name: 'Coupons',
+          component: () => import('../views/CouponManagement.vue'),
+        },
+        {
           path: 'system',
           name: 'System',
           component: () => import('../views/SystemManagement.vue'),

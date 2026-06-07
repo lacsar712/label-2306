@@ -18,6 +18,8 @@ model User {
   operatedTxs   PointsTransaction[]
   operatedMemberTags MemberTag[]
   operatedTagHistories TagBindingHistory[]
+  operatedCoupons Coupon[]
+  operatedCouponIssueBatches CouponIssueBatch[]
 
   @@map("users")
 }
@@ -36,6 +38,7 @@ model Member {
   transactions  PointsTransaction[]
   memberTags    MemberTag[]
   tagHistories  TagBindingHistory[]
+  memberCoupons MemberCoupon[]
 
   @@map("members")
 }
@@ -118,6 +121,12 @@ enum AuditActionType {
   AUTH_LOGIN
   AUTH_LOGOUT
   COUPON_ISSUE
+  COUPON_CREATE
+  COUPON_UPDATE
+  COUPON_DELETE
+  COUPON_STATUS_CHANGE
+  COUPON_REDEEM
+  COUPON_REFUND
   BLACKLIST_ADD
   BLACKLIST_REMOVE
   DATA_EXPORT
@@ -257,6 +266,117 @@ enum AuditSensitivityLevel {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum CouponType {
+  FULL_REDUCTION
+  DISCOUNT
+  POINTS_EXCHANGE
+}
+
+enum CouponStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  ENDED
+}
+
+enum CouponScope {
+  ALL
+  PRODUCT
+  CATEGORY
+}
+
+enum MemberCouponStatus {
+  CLAIMED
+  LOCKED
+  REDEEMED
+  RETURNED
+  EXPIRED
+}
+
+enum IssueTargetType {
+  SPECIFIC
+  LEVEL
+  TAG
+}
+
+model Coupon {
+  id                Int                @id @default(autoincrement())
+  name              String
+  type              CouponType
+  value             Decimal            @db.Decimal(10, 2)
+  minConsume        Decimal            @default(0) @db.Decimal(10, 2) @map("min_consume")
+  pointsCost        Int?               @map("points_cost")
+  applicableLevels  Json?              @map("applicable_levels")
+  scope             CouponScope        @default(ALL)
+  scopeIds          Json?              @map("scope_ids")
+  validFrom         DateTime?          @map("valid_from")
+  validTo           DateTime?          @map("valid_to")
+  validDays         Int?               @map("valid_days")
+  totalQuantity     Int                @map("total_quantity")
+  claimedQuantity   Int                @default(0) @map("claimed_quantity")
+  redeemedQuantity  Int                @default(0) @map("redeemed_quantity")
+  perUserLimit      Int                @default(1) @map("per_user_limit")
+  stackable         Boolean            @default(false)
+  shelfStatus       Boolean            @default(true) @map("shelf_status")
+  status            CouponStatus       @default(DRAFT)
+  description       String?
+  operatorId        Int?               @map("operator_id")
+  operator          User?              @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  memberCoupons     MemberCoupon[]
+  issueBatches      CouponIssueBatch[]
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("coupons")
+}
+
+model MemberCoupon {
+  id            Int                @id @default(autoincrement())
+  couponId      Int                @map("coupon_id")
+  coupon        Coupon             @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  memberId      Int                @map("member_id")
+  member        Member             @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  code          String             @unique
+  status        MemberCouponStatus @default(CLAIMED)
+  orderNo       String?            @map("order_no")
+  batchId       Int?               @map("batch_id")
+  issueBatch    CouponIssueBatch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  claimedAt     DateTime           @default(now()) @map("claimed_at")
+  lockedAt      DateTime?          @map("locked_at")
+  redeemedAt    DateTime?          @map("redeemed_at")
+  returnedAt    DateTime?          @map("returned_at")
+  expiredAt     DateTime?          @map("expired_at")
+  remark        String?
+
+  @@index([couponId])
+  @@index([memberId])
+  @@index([status])
+  @@index([claimedAt])
+  @@map("member_coupons")
+}
+
+model CouponIssueBatch {
+  id              Int              @id @default(autoincrement())
+  couponId        Int              @map("coupon_id")
+  coupon          Coupon           @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  targetType      IssueTargetType  @default(SPECIFIC) @map("target_type")
+  targetIds       Json             @map("target_ids")
+  scheduledAt     DateTime?        @map("scheduled_at")
+  expireReminder  Boolean          @default(true) @map("expire_reminder")
+  totalIssued     Int              @default(0) @map("total_issued")
+  operatorId      Int?             @map("operator_id")
+  operator        User?            @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  memberCoupons   MemberCoupon[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([couponId])
+  @@index([createdAt])
+  @@map("coupon_issue_batches")
 }
 
 enum AuditResultStatus {

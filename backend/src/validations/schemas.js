@@ -109,6 +109,66 @@ const MemberListWithTagsSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
 });
 
+const CouponCreateSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: z.enum(['FULL_REDUCTION', 'DISCOUNT', 'POINTS_EXCHANGE']),
+  value: z.coerce.number().positive(),
+  minConsume: z.coerce.number().min(0).optional().default(0),
+  pointsCost: z.coerce.number().int().positive().optional().nullable(),
+  applicableLevels: z.array(z.enum(['NORMAL', 'SILVER', 'GOLD', 'PLATINUM'])).optional().nullable(),
+  scope: z.enum(['ALL', 'PRODUCT', 'CATEGORY']).optional().default('ALL'),
+  scopeIds: z.array(z.union([z.string(), z.number()])).optional().nullable(),
+  validFrom: z.string().optional().nullable(),
+  validTo: z.string().optional().nullable(),
+  validDays: z.coerce.number().int().positive().optional().nullable(),
+  totalQuantity: z.coerce.number().int().positive(),
+  perUserLimit: z.coerce.number().int().positive().optional().default(1),
+  stackable: z.boolean().optional().default(false),
+  shelfStatus: z.boolean().optional().default(true),
+  description: z.string().max(500).optional().nullable(),
+});
+
+const CouponUpdateSchema = CouponCreateSchema.partial();
+
+const CouponStatusChangeSchema = z.object({
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ENDED']),
+  remark: z.string().optional().nullable(),
+});
+
+const CouponIssueSchema = z.object({
+  couponId: z.coerce.number().int(),
+  targetType: z.enum(['SPECIFIC', 'LEVEL', 'TAG']),
+  targetIds: z.array(z.union([z.string(), z.number()])),
+  scheduledAt: z.string().optional().nullable(),
+  expireReminder: z.boolean().optional().default(true),
+});
+
+const CouponQuerySchema = z.object({
+  search: z.string().optional(),
+  type: z.enum(['FULL_REDUCTION', 'DISCOUNT', 'POINTS_EXCHANGE']).optional(),
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ENDED']).optional(),
+  shelfStatus: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const MemberCouponQuerySchema = z.object({
+  couponId: z.coerce.number().int().optional(),
+  memberId: z.coerce.number().int().optional(),
+  status: z.enum(['CLAIMED', 'LOCKED', 'REDEEMED', 'RETURNED', 'EXPIRED']).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const CouponRedeemSchema = z.object({
+  orderNo: z.string().min(1),
+  remark: z.string().optional().nullable(),
+});
+
+const CouponRefundSchema = z.object({
+  remark: z.string().optional().nullable(),
+});
+
 module.exports = {
   MemberSchema,
   PointsUpdateSchema,
@@ -126,4 +186,12 @@ module.exports = {
   MemberTagUnbindSchema,
   BatchTagApplySchema,
   MemberListWithTagsSchema,
+  CouponCreateSchema,
+  CouponUpdateSchema,
+  CouponStatusChangeSchema,
+  CouponIssueSchema,
+  CouponQuerySchema,
+  MemberCouponQuerySchema,
+  CouponRedeemSchema,
+  CouponRefundSchema,
 };
