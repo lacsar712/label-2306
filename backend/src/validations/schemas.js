@@ -169,6 +169,77 @@ const CouponRefundSchema = z.object({
   remark: z.string().optional().nullable(),
 });
 
+const NotificationTemplateSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: z.enum(['INFO', 'WARNING', 'SUCCESS', 'URGENT']).optional().default('INFO'),
+  title: z.string().min(1).max(200),
+  content: z.string().min(1),
+  variables: z.array(z.string()).optional().nullable(),
+  isSystem: z.boolean().optional().default(false),
+});
+
+const NotificationTemplateUpdateSchema = NotificationTemplateSchema.partial();
+
+const NotificationTemplateQuerySchema = z.object({
+  search: z.string().optional(),
+  type: z.enum(['INFO', 'WARNING', 'SUCCESS', 'URGENT']).optional(),
+  isSystem: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const NotificationCreateSchema = z.object({
+  type: z.enum(['INFO', 'WARNING', 'SUCCESS', 'URGENT']).optional().default('INFO'),
+  title: z.string().min(1).max(200),
+  content: z.string().min(1),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional().default('MEDIUM'),
+  targetType: z.enum(['SINGLE_USER', 'ROLE', 'TAG', 'ALL']).optional().default('ALL'),
+  targetIds: z.array(z.union([z.string(), z.number()])).optional().nullable(),
+  scheduledAt: z.string().optional().nullable(),
+  expiredAt: z.string().optional().nullable(),
+  templateId: z.coerce.number().int().optional().nullable(),
+  templateVariables: z.record(z.string(), z.any()).optional().nullable(),
+});
+
+const NotificationUpdateSchema = NotificationCreateSchema.partial();
+
+const NotificationQuerySchema = z.object({
+  search: z.string().optional(),
+  type: z.enum(['INFO', 'WARNING', 'SUCCESS', 'URGENT']).optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+  status: z.enum(['DRAFT', 'SCHEDULED', 'SENT', 'ARCHIVED']).optional(),
+  targetType: z.enum(['SINGLE_USER', 'ROLE', 'TAG', 'ALL']).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const NotificationSendSchema = z.object({
+  notificationId: z.coerce.number().int().optional(),
+  type: z.enum(['INFO', 'WARNING', 'SUCCESS', 'URGENT']).optional().default('INFO'),
+  title: z.string().min(1).max(200),
+  content: z.string().min(1),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional().default('MEDIUM'),
+  targetType: z.enum(['SINGLE_USER', 'ROLE', 'TAG', 'ALL']).optional().default('ALL'),
+  targetIds: z.array(z.union([z.string(), z.number()])).optional().nullable(),
+  scheduledAt: z.string().optional().nullable(),
+  expiredAt: z.string().optional().nullable(),
+  templateId: z.coerce.number().int().optional().nullable(),
+  templateVariables: z.record(z.string(), z.any()).optional().nullable(),
+});
+
+const UserNotificationQuerySchema = z.object({
+  search: z.string().optional(),
+  type: z.enum(['INFO', 'WARNING', 'SUCCESS', 'URGENT']).optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+  isRead: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(20),
+});
+
+const NotificationReadSchema = z.object({
+  ids: z.array(z.coerce.number().int()).optional(),
+});
+
 module.exports = {
   MemberSchema,
   PointsUpdateSchema,
@@ -194,4 +265,13 @@ module.exports = {
   MemberCouponQuerySchema,
   CouponRedeemSchema,
   CouponRefundSchema,
+  NotificationTemplateSchema,
+  NotificationTemplateUpdateSchema,
+  NotificationTemplateQuerySchema,
+  NotificationCreateSchema,
+  NotificationUpdateSchema,
+  NotificationQuerySchema,
+  NotificationSendSchema,
+  UserNotificationQuerySchema,
+  NotificationReadSchema,
 };

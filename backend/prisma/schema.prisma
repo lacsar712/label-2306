@@ -20,6 +20,9 @@ model User {
   operatedTagHistories TagBindingHistory[]
   operatedCoupons Coupon[]
   operatedCouponIssueBatches CouponIssueBatch[]
+  operatedNotificationTemplates NotificationTemplate[]
+  operatedNotifications Notification[]
+  receivedNotifications NotificationRecipient[]
 
   @@map("users")
 }
@@ -425,4 +428,98 @@ model AuditConfig {
   updatedBy          Int?                @map("updated_by")
 
   @@map("audit_configs")
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  URGENT
+}
+
+enum NotificationTargetType {
+  SINGLE_USER
+  ROLE
+  TAG
+  ALL
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  ARCHIVED
+}
+
+model NotificationTemplate {
+  id          Int              @id @default(autoincrement())
+  name        String
+  type        NotificationType @default(INFO)
+  title       String
+  content     String           @db.Text
+  variables   Json?
+  isSystem    Boolean          @default(false) @map("is_system")
+  operatorId  Int?             @map("operator_id")
+  operator    User?            @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  notifications Notification[]
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([isSystem])
+  @@map("notification_templates")
+}
+
+model Notification {
+  id              Int                    @id @default(autoincrement())
+  type            NotificationType       @default(INFO)
+  title           String
+  content         String                 @db.Text
+  priority        NotificationPriority   @default(MEDIUM)
+  targetType      NotificationTargetType @default(ALL) @map("target_type")
+  targetIds       Json?                  @map("target_ids")
+  status          NotificationStatus     @default(DRAFT)
+  scheduledAt     DateTime?              @map("scheduled_at")
+  expiredAt       DateTime?              @map("expired_at")
+  sentAt          DateTime?              @map("sent_at")
+  templateId      Int?                   @map("template_id")
+  template        NotificationTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateVariables Json?                @map("template_variables")
+  operatorId      Int?                   @map("operator_id")
+  operator        User?                  @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  recipients      NotificationRecipient[]
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([priority])
+  @@index([status])
+  @@index([targetType])
+  @@index([scheduledAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  id              Int           @id @default(autoincrement())
+  notificationId  Int           @map("notification_id")
+  notification    Notification  @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId          Int           @map("user_id")
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isRead          Boolean       @default(false) @map("is_read")
+  readAt          DateTime?     @map("read_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@unique([notificationId, userId])
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notification_recipients")
 }

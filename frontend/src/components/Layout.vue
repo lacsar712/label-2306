@@ -30,6 +30,10 @@
           <el-icon><Present /></el-icon>
           <span>优惠券管理</span>
         </el-menu-item>
+        <el-menu-item index="/notifications">
+          <el-icon><Bell /></el-icon>
+          <span>通知中心</span>
+        </el-menu-item>
         <el-menu-item v-if="authStore.isAdmin" index="/system">
           <el-icon><Setting /></el-icon>
           <span>系统管理</span>
@@ -56,6 +60,83 @@
             </el-breadcrumb>
           </div>
           <div class="user-info">
+            <el-popover
+              placement="bottom-end"
+              :width="380"
+              trigger="click"
+              popper-class="notification-popover"
+              :visible="notificationPopoverVisible"
+              @show="handlePopoverShow"
+              @hide="handlePopoverHide"
+            >
+              <template #reference>
+                <el-badge :value="notificationStore.unreadCount" :hidden="notificationStore.unreadCount === 0" class="notification-badge">
+                  <el-button class="notification-btn" circle>
+                    <el-icon :size="18"><Bell /></el-icon>
+                  </el-button>
+                </el-badge>
+              </template>
+
+              <div class="notification-panel">
+                <div class="panel-header">
+                  <span class="panel-title">通知中心</span>
+                  <div class="panel-actions">
+                    <el-button type="primary" link size="small" @click="handleMarkAllRead" :disabled="notificationStore.unreadCount === 0">
+                      全部标为已读
+                    </el-button>
+                    <el-button type="primary" link size="small" @click="goToNotifications">
+                      查看全部
+                    </el-button>
+                  </div>
+                </div>
+
+                <div class="panel-filters">
+                  <el-select v-model="panelFilters.type" placeholder="类型" size="small" style="width: 100px" clearable @change="fetchPanelNotifications">
+                    <el-option label="信息" value="INFO" />
+                    <el-option label="警告" value="WARNING" />
+                    <el-option label="成功" value="SUCCESS" />
+                    <el-option label="紧急" value="URGENT" />
+                  </el-select>
+                  <el-select v-model="panelFilters.priority" placeholder="优先级" size="small" style="width: 100px" clearable @change="fetchPanelNotifications">
+                    <el-option label="低" value="LOW" />
+                    <el-option label="中" value="MEDIUM" />
+                    <el-option label="高" value="HIGH" />
+                    <el-option label="紧急" value="URGENT" />
+                  </el-select>
+                  <el-input
+                    v-model="panelFilters.search"
+                    placeholder="搜索"
+                    size="small"
+                    style="width: 140px"
+                    clearable
+                    @keyup.enter="fetchPanelNotifications"
+                  >
+                    <template #prefix><el-icon><Search /></el-icon></template>
+                  </el-input>
+                </div>
+
+                <div class="panel-list" v-loading="panelLoading">
+                  <div
+                    v-for="item in panelNotifications"
+                    :key="item.id"
+                    class="panel-item"
+                    :class="{ unread: !item.isRead }"
+                    @click="handleViewNotification(item)"
+                  >
+                    <div class="item-header">
+                      <el-tag size="small" :type="getNotificationTypeTag(item.notification.type)" effect="light">
+                        {{ getNotificationTypeLabel(item.notification.type) }}
+                      </el-tag>
+                      <span class="item-time">{{ formatTime(item.createdAt) }}</span>
+                    </div>
+                    <div class="item-title">{{ item.notification.title }}</div>
+                    <div class="item-content">{{ stripHtml(item.notification.content) }}</div>
+                  </div>
+                  <el-empty v-if="panelNotifications.length === 0 && !panelLoading" description="暂无通知" />
+                </div>
+              </div>
+            </el-popover>
+
             <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
             <span class="username">{{ authStore.user?.username || '管理员' }}</span>
             <el-tag size="small" :type="authStore.isAdmin ? 'danger' : 'info'" class="role-tag">
@@ -76,15 +157,31 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets, Document, PriceTag, Present } from '@element-plus/icons-vue';
+import { useNotificationStore } from '../stores/notification';
+import { DataAnalysis, User, Setting, SwitchButton, UserFilled, Tickets, Document, PriceTag, Present, Bell, Search } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import dayjs from 'dayjs';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const notificationStore = useNotificationStore();
+
+const notificationPopoverVisible = ref(false);
+const panelLoading = ref(false);
+const panelNotifications = ref([]);
+let refreshTimer = null;
+
+const panelFilters = reactive({
+  type: '',
+  priority: '',
+  search: '',
+  page: 1,
+  pageSize: 10,
+});
 
 const activeMenu = computed(() => route.path);
 const currentPageName = computed(() => {
@@ -94,16 +191,127 @@ const currentPageName = computed(() => {
   if (route.path === '/transactions') return '积分流水';
   if (route.path === '/tags') return '会员标签';
   if (route.path === '/coupons') return '优惠券管理';
+  if (route.path === '/notifications') return '通知中心';
+  if (route.path.startsWith('/notifications/')) return '通知中心';
   if (route.path === '/system') return '系统管理';
   if (route.path === '/audit-logs') return '操作审计';
   return '';
 });
 
+const fetchPanelNotifications = async () => {
+  panelLoading.value = true;
+  try {
+    const result = await notificationStore.fetchMyNotifications(panelFilters);
+    panelNotifications.value = result.list || [];
+  } catch (e) {
+    console.error('Failed to fetch notifications:', e);
+  } finally {
+    panelLoading.value = false;
+  }
+};
+
+const handlePopoverShow = () => {
+  fetchPanelNotifications();
+};
+
+const handlePopoverHide = () => {
+};
+
+const handleViewNotification = async (item) => {
+  if (!item.isRead) {
+    try {
+      await notificationStore.markAsRead([item.notificationId]);
+      notificationStore.decrementUnreadCount();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  notificationPopoverVisible.value = false;
+  router.push('/notifications');
+};
+
+const handleMarkAllRead = async () => {
+  try {
+    await notificationStore.markAllAsRead();
+    ElMessage.success('已全部标为已读');
+    fetchPanelNotifications();
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const goToNotifications = () => {
+  notificationPopoverVisible.value = false;
+  router.push('/notifications');
+};
+
+const getNotificationTypeTag = (type) => {
+  const map = {
+    INFO: 'info',
+    WARNING: 'warning',
+    SUCCESS: 'success',
+    URGENT: 'danger',
+  };
+  return map[type] || 'info';
+};
+
+const getNotificationTypeLabel = (type) => {
+  const map = {
+    INFO: '信息',
+    WARNING: '警告',
+    SUCCESS: '成功',
+    URGENT: '紧急',
+  };
+  return map[type] || type;
+};
+
+const formatTime = (date) => {
+  if (!date) return '';
+  const now = dayjs();
+  const target = dayjs(date);
+  const diffMinutes = now.diff(target, 'minute');
+  if (diffMinutes < 1) return '刚刚';
+  if (diffMinutes < 60) return `${diffMinutes}分钟前`;
+  const diffHours = now.diff(target, 'hour');
+  if (diffHours < 24) return `${diffHours}小时前`;
+  const diffDays = now.diff(target, 'day');
+  if (diffDays < 7) return `${diffDays}天前`;
+  return target.format('MM-DD HH:mm');
+};
+
+const stripHtml = (html) => {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, '').substring(0, 60);
+};
+
 const handleLogout = () => {
   authStore.logout();
+  notificationStore.unreadCount = 0;
   ElMessage.success('已退出登录');
   router.push('/login');
 };
+
+const startRefreshTimer = () => {
+  refreshTimer = setInterval(() => {
+    notificationStore.fetchUnreadCount();
+  }, 60000);
+};
+
+const stopRefreshTimer = () => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+};
+
+onMounted(() => {
+  notificationStore.fetchUnreadCount();
+  startRefreshTimer();
+});
+
+onUnmounted(() => {
+  stopRefreshTimer();
+});
 </script>
 
 <style scoped>
@@ -206,5 +414,111 @@ const handleLogout = () => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.notification-badge {
+  margin-right: 8px;
+}
+
+.notification-btn {
+  padding: 0;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.notification-btn:hover {
+  background-color: #f1f5f9;
+}
+
+:deep(.notification-popover) {
+  padding: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
+.notification-panel {
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.panel-filters {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+.panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.panel-item {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-bottom: 4px;
+}
+
+.panel-item:hover {
+  background-color: #f8fafc;
+}
+
+.panel-item.unread {
+  background-color: #eff6ff;
+  border-left: 3px solid #3b82f6;
+}
+
+.panel-item.unread:hover {
+  background-color: #dbeafe;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.item-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.item-content {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
 }
 </style>
