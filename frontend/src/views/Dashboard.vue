@@ -83,7 +83,7 @@
                   </div>
                   <span class="member-phone">{{ member.phone }}</span>
                 </div>
-                <el-empty v-if="!birthdayStats.today?.members || birthdayStats.today.members.length === 0" description="今日暂无生日会员" :image-size="60" />
+                <EmptyState v-if="!birthdayStats.today?.members || birthdayStats.today.members.length === 0" description="今日暂无生日会员" :image-size="60" />
               </div>
             </div>
 
@@ -227,8 +227,9 @@ import { onMounted, computed, ref, nextTick, onUnmounted } from 'vue';
 import { useMemberStore } from '../stores/member';
 import { useBirthdayStore } from '../stores/birthday';
 import { User, CircleCheck, Star, Cherry, DataAnalysis, Bell, Sunny, Warning, Present, InfoFilled, Histogram } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
 import * as echarts from 'echarts';
+import { useAsyncRequest } from '../composables/useAsyncRequest';
+import EmptyState from '../components/EmptyState.vue';
 
 const memberStore = useMemberStore();
 const birthdayStore = useBirthdayStore();
@@ -237,6 +238,20 @@ const birthdayStats = computed(() => birthdayStore.dashboardStats || {});
 
 const heatmapChartRef = ref(null);
 let heatmapChart = null;
+
+const fetchDashboardRequest = useAsyncRequest(
+  async () => {
+    memberStore.fetchStats();
+    await birthdayStore.fetchDashboardStats();
+  },
+  {
+    onSuccess: () => {
+      nextTick().then(() => {
+        initHeatmapChart();
+      });
+    },
+  }
+);
 
 const getLevelLabel = (level) => {
   const map = { NORMAL: '普通会员', SILVER: '白银会员', GOLD: '黄金会员', PLATINUM: '铂金会员' };
@@ -330,10 +345,7 @@ const handleResize = () => {
 };
 
 onMounted(async () => {
-  memberStore.fetchStats();
-  await birthdayStore.fetchDashboardStats();
-  await nextTick();
-  initHeatmapChart();
+  await fetchDashboardRequest.execute();
   window.addEventListener('resize', handleResize);
 });
 

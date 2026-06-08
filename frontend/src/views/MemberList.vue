@@ -53,7 +53,7 @@
           </div>
         </div>
         <div v-if="tagStore.tagStats.length === 0" class="empty-tags">
-          <el-empty description="暂无标签数据" :image-size="80" />
+          <EmptyState description="暂无标签数据" />
         </div>
       </div>
     </el-card>
@@ -321,7 +321,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showAddDialog = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitForm">确定</el-button>
+        <el-button type="primary" :loading="submitFormRequest.loading" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
 
@@ -374,7 +374,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showTagBindDialog = false">取消</el-button>
-        <el-button type="primary" :loading="binding" @click="confirmBindTags">确认绑定</el-button>
+        <el-button type="primary" :loading="bindTagsRequest.loading" @click="confirmBindTags">确认绑定</el-button>
       </template>
     </el-dialog>
 
@@ -433,7 +433,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showBatchTagDialog = false">取消</el-button>
-        <el-button type="primary" :loading="batchApplying" :disabled="!batchTagId" @click="confirmBatchTag">
+        <el-button type="primary" :loading="batchTagRequest.loading" :disabled="!batchTagId" @click="confirmBatchTag">
           确认打标
         </el-button>
       </template>
@@ -445,7 +445,7 @@
       width="640px"
       destroy-on-close
     >
-      <div v-loading="benefitsLoading" class="member-benefits">
+      <div v-loading="fetchBenefitsRequest.loading" class="member-benefits">
         <div class="member-info-bar">
           <el-avatar :size="40" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
           <div class="member-info-detail">
@@ -463,12 +463,12 @@
 
         <el-divider content-position="left">
           <span class="divider-title">
-            <el-icon><Medal /></el-icon>当前等级权益 ({{ memberBenefitsData?.currentLevelBenefits?.length || 0 }} 项)
+            <el-icon><Medal /></el-icon>当前等级权益 ({{ fetchBenefitsRequest.data?.currentLevelBenefits?.length || 0 }} 项)
           </span>
         </el-divider>
 
-        <div v-if="memberBenefitsData?.currentLevelBenefits?.length > 0" class="benefit-list">
-          <div v-for="b in memberBenefitsData.currentLevelBenefits" :key="b.id" class="benefit-card">
+        <div v-if="fetchBenefitsRequest.data?.currentLevelBenefits?.length > 0" class="benefit-list">
+          <div v-for="b in fetchBenefitsRequest.data.currentLevelBenefits" :key="b.id" class="benefit-card">
             <div class="benefit-icon">
               <el-icon :size="20"><component :is="b.icon || 'Star'" /></el-icon>
             </div>
@@ -483,19 +483,19 @@
             </div>
           </div>
         </div>
-        <el-empty v-else description="当前等级暂无已发布的权益" :image-size="80" />
+        <EmptyState v-else description="当前等级暂无已发布的权益" />
 
-        <template v-if="memberBenefitsData?.nextLevel">
+        <template v-if="fetchBenefitsRequest.data?.nextLevel">
           <el-divider content-position="left">
             <span class="divider-title divider-next">
               <el-icon><TrendCharts /></el-icon>
-              {{ getLevelLabel(memberBenefitsData.nextLevel) }} 可解锁权益预览
+              {{ getLevelLabel(fetchBenefitsRequest.data.nextLevel) }} 可解锁权益预览
               <el-tag size="small" type="info" effect="plain">升级后可享</el-tag>
             </span>
           </el-divider>
 
-          <div v-if="memberBenefitsData?.nextLevelBenefits?.length > 0" class="benefit-list benefit-list-next">
-            <div v-for="b in memberBenefitsData.nextLevelBenefits" :key="b.id" class="benefit-card benefit-card-next">
+          <div v-if="fetchBenefitsRequest.data?.nextLevelBenefits?.length > 0" class="benefit-list benefit-list-next">
+            <div v-for="b in fetchBenefitsRequest.data.nextLevelBenefits" :key="b.id" class="benefit-card benefit-card-next">
               <div class="benefit-lock">
                 <el-icon :size="16"><Lock /></el-icon>
               </div>
@@ -510,7 +510,7 @@
               </div>
             </div>
           </div>
-          <el-empty v-else description="下一等级暂无已发布的权益" :image-size="80" />
+          <EmptyState v-else description="下一等级暂无已发布的权益" />
         </template>
       </div>
     </el-dialog>
@@ -524,6 +524,8 @@ import { useTagStore } from '../stores/tag';
 import dayjs from 'dayjs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search, PriceTag, CaretTop, CaretBottom, Coin, Medal, TrendCharts, Lock, Star } from '@element-plus/icons-vue';
+import { useAsyncRequest } from '../composables/useAsyncRequest';
+import EmptyState from '../components/EmptyState.vue';
 
 const memberStore = useMemberStore();
 const tagStore = useTagStore();
@@ -539,10 +541,6 @@ const showTagBindDialog = ref(false);
 const showBatchTagDialog = ref(false);
 const showBenefitsDialog = ref(false);
 const isEdit = ref(false);
-const submitting = ref(false);
-const binding = ref(false);
-const batchApplying = ref(false);
-const benefitsLoading = ref(false);
 const formRef = ref(null);
 const tableRef = ref(null);
 
@@ -553,7 +551,72 @@ const batchTagId = ref(null);
 const batchRemark = ref('');
 const formTagIds = ref([]);
 const viewingMember = ref(null);
-const memberBenefitsData = ref(null);
+
+const submitFormRequest = useAsyncRequest(
+  async () => {
+    if (isEdit.value) {
+      await memberStore.updateMember(form.id, form);
+      if (formTagIds.value.length >= 0) {
+        const currentTagIds = (await tagStore.fetchMemberTags(form.id)).map(mt => mt.tagId);
+        const toBind = formTagIds.value.filter(id => !currentTagIds.includes(id));
+        const toUnbind = currentTagIds.filter(id => !formTagIds.value.includes(id));
+        if (toBind.length > 0) await tagStore.bindMemberTags(form.id, toBind, '编辑会员时绑定');
+        if (toUnbind.length > 0) await tagStore.unbindMemberTags(form.id, toUnbind, '编辑会员时解绑');
+      }
+    } else {
+      const member = await memberStore.addMember(form);
+      if (formTagIds.value.length > 0 && member?.id) {
+        await tagStore.bindMemberTags(member.id, formTagIds.value, '创建会员时绑定');
+      }
+    }
+  },
+  {
+    showSuccess: true,
+    onSuccess: () => {
+      showAddDialog.value = false;
+      fetchMembers();
+      tagStore.fetchTagStats();
+    },
+  }
+);
+
+const bindTagsRequest = useAsyncRequest(
+  async () => {
+    await tagStore.bindMemberTags(bindingMember.value.id, bindingTagIds.value, bindingRemark.value);
+  },
+  {
+    successMessage: '绑定成功',
+    showSuccess: true,
+    onSuccess: () => {
+      showTagBindDialog.value = false;
+      fetchMembers();
+    },
+  }
+);
+
+const batchTagRequest = useAsyncRequest(
+  async () => {
+    const memberIds = selectedMembers.value.map(m => m.id);
+    return await tagStore.batchApplyTag(batchTagId.value, memberIds, batchRemark.value);
+  },
+  {
+    showSuccess: true,
+    onSuccess: (result) => {
+      ElMessage.success(`成功打标 ${result.success?.length || 0} 人${result.skipped?.length > 0 ? `，跳过 ${result.skipped.length} 人` : ''}`);
+      showBatchTagDialog.value = false;
+      tableRef.value?.clearSelection();
+      fetchMembers();
+    },
+  }
+);
+
+const fetchBenefitsRequest = useAsyncRequest(
+  (rowId) => memberStore.fetchMemberBenefits(rowId),
+  {
+    errorMessage: '获取会员权益失败',
+    showError: true,
+  }
+);
 
 const form = reactive({
   id: null,
@@ -650,15 +713,7 @@ const handleDelete = async (id) => {
 const openBenefitsDialog = async (row) => {
   viewingMember.value = row;
   showBenefitsDialog.value = true;
-  benefitsLoading.value = true;
-  memberBenefitsData.value = null;
-  try {
-    memberBenefitsData.value = await memberStore.fetchMemberBenefits(row.id);
-  } catch (e) {
-    ElMessage.error('获取会员权益失败');
-  } finally {
-    benefitsLoading.value = false;
-  }
+  await fetchBenefitsRequest.execute(row.id);
 };
 
 const resetForm = () => {
@@ -681,31 +736,8 @@ const submitForm = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (valid) {
-      submitting.value = true;
-      try {
-        if (isEdit.value) {
-          await memberStore.updateMember(form.id, form);
-          if (formTagIds.value.length >= 0) {
-            const currentTagIds = (await tagStore.fetchMemberTags(form.id)).map(mt => mt.tagId);
-            const toBind = formTagIds.value.filter(id => !currentTagIds.includes(id));
-            const toUnbind = currentTagIds.filter(id => !formTagIds.value.includes(id));
-            if (toBind.length > 0) await tagStore.bindMemberTags(form.id, toBind, '编辑会员时绑定');
-            if (toUnbind.length > 0) await tagStore.unbindMemberTags(form.id, toUnbind, '编辑会员时解绑');
-          }
-          ElMessage.success('更新成功');
-        } else {
-          const member = await memberStore.addMember(form);
-          if (formTagIds.value.length > 0 && member?.id) {
-            await tagStore.bindMemberTags(member.id, formTagIds.value, '创建会员时绑定');
-          }
-          ElMessage.success('添加成功');
-        }
-        showAddDialog.value = false;
-        fetchMembers();
-        await tagStore.fetchTagStats();
-      } finally {
-        submitting.value = false;
-      }
+      submitFormRequest.config.successMessage = isEdit.value ? '更新成功' : '添加成功';
+      await submitFormRequest.execute();
     }
   });
 };
@@ -719,15 +751,7 @@ const openTagBindDialog = (row) => {
 
 const confirmBindTags = async () => {
   if (!bindingMember.value || bindingTagIds.value.length === 0) return;
-  binding.value = true;
-  try {
-    await tagStore.bindMemberTags(bindingMember.value.id, bindingTagIds.value, bindingRemark.value);
-    ElMessage.success('绑定成功');
-    showTagBindDialog.value = false;
-    fetchMembers();
-  } finally {
-    binding.value = false;
-  }
+  await bindTagsRequest.execute();
 };
 
 const handleUnbindTag = async (row, tagId) => {
@@ -743,17 +767,7 @@ const handleUnbindTag = async (row, tagId) => {
 
 const confirmBatchTag = async () => {
   if (!batchTagId.value || selectedMembers.value.length === 0) return;
-  batchApplying.value = true;
-  try {
-    const memberIds = selectedMembers.value.map(m => m.id);
-    const result = await tagStore.batchApplyTag(batchTagId.value, memberIds, batchRemark.value);
-    ElMessage.success(`成功打标 ${result.success?.length || 0} 人${result.skipped?.length > 0 ? `，跳过 ${result.skipped.length} 人` : ''}`);
-    showBatchTagDialog.value = false;
-    tableRef.value?.clearSelection();
-    fetchMembers();
-  } finally {
-    batchApplying.value = false;
-  }
+  await batchTagRequest.execute();
 };
 
 const getLevelLabel = (level) => {

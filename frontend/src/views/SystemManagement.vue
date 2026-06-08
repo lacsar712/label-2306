@@ -16,7 +16,7 @@
               <el-icon class="mr-4"><Plus /></el-icon>添加用户
             </el-button>
           </div>
-          <el-table :data="users" v-loading="loadingUsers" style="width: 100%" :header-cell-style="{ background: '#f8fafc' }">
+          <el-table :data="fetchUsersRequest.data" v-loading="fetchUsersRequest.loading" style="width: 100%" :header-cell-style="{ background: '#f8fafc' }">
             <el-table-column prop="username" label="用户名" />
             <el-table-column prop="role" label="角色">
               <template #default="{ row }">
@@ -56,18 +56,18 @@
             <el-descriptions title="服务器状态" :column="2" border class="info-descriptions">
               <el-descriptions-item label="操作系统">
                 <el-icon class="mr-4"><Platform /></el-icon>
-                {{ systemInfo.platform }} {{ systemInfo.release }}
+                {{ fetchSystemInfoRequest.data?.platform }} {{ fetchSystemInfoRequest.data?.release }}
               </el-descriptions-item>
               <el-descriptions-item label="Node.js 版本">
                 <el-icon class="mr-4"><Cpu /></el-icon>
-                {{ systemInfo.nodeVersion }}
+                {{ fetchSystemInfoRequest.data?.nodeVersion }}
               </el-descriptions-item>
-              <el-descriptions-item label="CPU 核心数">{{ systemInfo.cpuCount }}</el-descriptions-item>
-              <el-descriptions-item label="总内存">{{ systemInfo.totalMemory }}</el-descriptions-item>
-              <el-descriptions-item label="可用内存">{{ systemInfo.freeMemory }}</el-descriptions-item>
+              <el-descriptions-item label="CPU 核心数">{{ fetchSystemInfoRequest.data?.cpuCount }}</el-descriptions-item>
+              <el-descriptions-item label="总内存">{{ fetchSystemInfoRequest.data?.totalMemory }}</el-descriptions-item>
+              <el-descriptions-item label="可用内存">{{ fetchSystemInfoRequest.data?.freeMemory }}</el-descriptions-item>
               <el-descriptions-item label="运行时间">
                 <el-icon class="mr-4"><Timer /></el-icon>
-                {{ formatUptime(systemInfo.uptime) }}
+                {{ formatUptime(fetchSystemInfoRequest.data?.uptime || 0) }}
               </el-descriptions-item>
               <el-descriptions-item label="数据库状态">
                 <el-tag type="success" effect="dark" round>已连接</el-tag>
@@ -99,7 +99,7 @@
                 <span class="form-tip">关闭后仅 ADMIN 角色可执行批量导入</span>
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" :loading="savingImportConfig" @click="handleSaveImportConfig">
+                <el-button type="primary" :loading="saveImportConfigRequest.loading" @click="handleSaveImportConfig">
                   保存配置
                 </el-button>
               </el-form-item>
@@ -137,7 +137,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showUserDialog = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmitUser">确定</el-button>
+        <el-button type="primary" :loading="submitUserRequest.loading" @click="handleSubmitUser">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -151,21 +151,18 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Platform, Cpu, Timer } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 import { getImportConfig, updateImportConfig } from '../api/memberImport';
+import { useAsyncRequest } from '../composables/useAsyncRequest';
+import EmptyState from '../components/EmptyState.vue';
 
 const authStore = useAuthStore();
 const activeTab = ref('users');
-const users = ref([]);
-const loadingUsers = ref(false);
-const systemInfo = ref({});
 const showUserDialog = ref(false);
 const isEditUser = ref(false);
-const submitting = ref(false);
 const userFormRef = ref(null);
 const importConfig = reactive({
   maxImportLimit: 1000,
   allowNonAdminImport: false,
 });
-const savingImportConfig = ref(false);
 
 const userForm = reactive({
   id: null,
@@ -194,48 +191,78 @@ const userRules = {
   role: [{ required: true, message: '请选择角色', trigger: 'change' }]
 };
 
-const fetchUsers = async () => {
-  loadingUsers.value = true;
-  try {
-    users.value = await api.get('/users');
-  } finally {
-    loadingUsers.value = false;
+const fetchUsersRequest = useAsyncRequest(
+  () => api.get('/users'),
+  {
+    onSuccess: (data) => {
+      fetchUsersRequest.data.value = data;
+    },
   }
-};
+);
 
-const fetchSystemInfo = async () => {
-  try {
-    systemInfo.value = await api.get('/system/info');
-  } catch (error) {
-    console.error('Failed to fetch system info', error);
+const fetchSystemInfoRequest = useAsyncRequest(
+  () => api.get('/system/info'),
+  {
+    onError: (error) => {
+      console.error('Failed to fetch system info', error);
+    },
   }
-};
+);
 
-const fetchImportConfig = async () => {
-  try {
-    const res = await getImportConfig();
-    if (res.data) {
-      importConfig.maxImportLimit = res.data.maxImportLimit;
-      importConfig.allowNonAdminImport = res.data.allowNonAdminImport;
+const fetchImportConfigRequest = useAsyncRequest(
+  () => getImportConfig(),
+  {
+    onSuccess: (res) => {
+      if (res.data) {
+        importConfig.maxImportLimit = res.data.maxImportLimit;
+        importConfig.allowNonAdminImport = res.data.allowNonAdminImport;
+      }
+    },
+    onError: (error) => {
+      console.error('Failed to fetch import config', error);
+    },
+  }
+);
+
+const saveImportConfigRequest = useAsyncRequest(
+  () => updateImportConfig({
+    maxImportLimit: importConfig.maxImportLimit,
+    allowNonAdminImport: importConfig.allowNonAdminImport,
+  }),
+  {
+    successMessage: '导入配置已保存',
+    showSuccess: true,
+    errorMessage: '保存失败',
+    showError: true,
+  }
+);
+
+const submitUserRequest = useAsyncRequest(
+  async () => {
+    if (isEditUser.value) {
+      const updateData = {
+        username: userForm.username,
+        role: userForm.role
+      };
+      if (userForm.password) {
+        updateData.password = userForm.password;
+      }
+      await api.put(`/users/${userForm.id}`, updateData);
+    } else {
+      await api.post('/users', userForm);
     }
-  } catch (error) {
-    console.error('Failed to fetch import config', error);
+  },
+  {
+    showSuccess: true,
+    onSuccess: () => {
+      showUserDialog.value = false;
+      fetchUsersRequest.execute();
+    },
   }
-};
+);
 
 const handleSaveImportConfig = async () => {
-  savingImportConfig.value = true;
-  try {
-    await updateImportConfig({
-      maxImportLimit: importConfig.maxImportLimit,
-      allowNonAdminImport: importConfig.allowNonAdminImport,
-    });
-    ElMessage.success('导入配置已保存');
-  } catch (e) {
-    ElMessage.error(e.response?.data?.error || '保存失败');
-  } finally {
-    savingImportConfig.value = false;
-  }
+  await saveImportConfigRequest.execute();
 };
 
 const handleAddClick = () => {
@@ -266,27 +293,8 @@ const handleSubmitUser = async () => {
   if (!userFormRef.value) return;
   await userFormRef.value.validate(async (valid) => {
     if (valid) {
-      submitting.value = true;
-      try {
-        if (isEditUser.value) {
-          const updateData = {
-            username: userForm.username,
-            role: userForm.role
-          };
-          if (userForm.password) {
-            updateData.password = userForm.password;
-          }
-          await api.put(`/users/${userForm.id}`, updateData);
-          ElMessage.success('用户更新成功');
-        } else {
-          await api.post('/users', userForm);
-          ElMessage.success('用户添加成功');
-        }
-        showUserDialog.value = false;
-        fetchUsers();
-      } finally {
-        submitting.value = false;
-      }
+      submitUserRequest.config.successMessage = isEditUser.value ? '用户更新成功' : '用户添加成功';
+      await submitUserRequest.execute();
     }
   });
 };
@@ -299,7 +307,7 @@ const handleDeleteUser = (user) => {
   }).then(async () => {
     await api.delete(`/users/${user.id}`);
     ElMessage.success('用户已删除');
-    fetchUsers();
+    fetchUsersRequest.execute();
   }).catch(() => {});
 };
 
@@ -312,9 +320,9 @@ const formatUptime = (seconds) => {
 };
 
 onMounted(() => {
-  fetchUsers();
-  fetchSystemInfo();
-  fetchImportConfig();
+  fetchUsersRequest.execute();
+  fetchSystemInfoRequest.execute();
+  fetchImportConfigRequest.execute();
 });
 </script>
 
