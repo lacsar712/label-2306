@@ -1,96 +1,48 @@
 const express = require('express');
 const router = express.Router();
-const prisma = require('../utils/prisma');
 const logger = require('../utils/logger');
 const { authenticate } = require('../middleware/auth');
-const { MemberSchema, PointsUpdateSchema, FreezePointsSchema, MemberListWithTagsSchema } = require('../validations/schemas');
 const { z } = require('zod');
-const { createTransaction } = require('../services/pointsTransaction');
 const { createAuditLog } = require('../services/auditLog');
-const { getMemberBenefits } = require('../services/levelBenefitService');
+const {
+  listMembers,
+  createMember,
+  updateMember,
+  deleteMember,
+  adjustMemberPoints,
+  freezeMemberPoints,
+  unfreezeMemberPoints,
+  getMemberTransactions,
+  getMemberLevelBenefits,
+} = require('../services/memberService');
 
-// Get all members
+function handleError(res, error, defaultMsg = 'Internal Server Error') {
+  if (error instanceof z.ZodError) {
+    return res.status(400).json({ error: error.errors });
+  }
+  if (error.status) {
+    return res.status(error.status).json({ error: error.message });
+  }
+  if (error.code === 'P2002') {
+    return res.status(400).json({ error: 'Phone number already exists' });
+  }
+  logger.error('Request error', { error: error.message });
+  res.status(500).json({ error: defaultMsg });
+}
+
 router.get('/', authenticate, async (req, res) => {
   try {
-    const validated = MemberListWithTagsSchema.safeParse(req.query);
-    if (!validated.success) {
-      return res.status(400).json({ error: validated.error.errors });
-    }
-    const { search, level, status, tagIds, tagLogic, page, pageSize } = validated.data;
-    const where = {};
-    
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { phone: { contains: search } }
-      ];
-    }
-    if (level) where.level = level;
-    if (status) where.status = status;
-
-    if (tagIds) {
-      const tagIdArray = tagIds.split(',').map(Number).filter(n => !isNaN(n));
-      if (tagIdArray.length > 0) {
-        if (tagLogic === 'OR') {
-          where.memberTags = { some: { tagId: { in: tagIdArray } } };
-        } else {
-          where.AND = tagIdArray.map(tid => ({
-            memberTags: { some: { tagId: tid } }
-          }));
-        }
-      }
-    }
-
-    const [members, total] = await Promise.all([
-      prisma.member.findMany({
-        where,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy: { joinDate: 'desc' },
-        include: {
-          memberTags: {
-            include: { tag: { include: { group: true } } }
-          }
-        }
-      }),
-      prisma.member.count({ where })
-    ]);
-
-    res.json({
-      list: members,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize),
-    });
+    const result = await listMembers(req.query);
+    res.json(result);
   } catch (error) {
-    logger.error('Error fetching members', { error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error fetching members');
   }
 });
 
-// Create member
 router.post('/', authenticate, async (req, res) => {
   const startTime = Date.now();
   try {
-    const validatedData = MemberSchema.parse(req.body);
-    const member = await prisma.member.create({
-      data: validatedData
-    });
-
-    if (validatedData.points && validatedData.points > 0) {
-      try {
-        await createTransaction({
-          memberId: member.id,
-          points: validatedData.points,
-          reasonType: 'REGISTER_REWARD',
-          operatorId: req.user?.id || null,
-          remark: '注册赠送积分',
-        });
-      } catch (txError) {
-        logger.warn('Failed to create register reward transaction', { memberId: member.id, error: txError.message });
-      }
-    }
+    const member = await createMember(req.body, req.user?.id);
 
     await createAuditLog({
       operator: req.user,
@@ -117,34 +69,20 @@ router.post('/', authenticate, async (req, res) => {
       errorMessage: error.message,
     });
 
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Phone number already exists' });
-    }
-    logger.error('Error creating member', { error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error creating member');
   }
 });
 
-// Update member
 router.put('/:id', authenticate, async (req, res) => {
   const startTime = Date.now();
   try {
-    const id = parseInt(req.params.id);
-    const beforeMember = await prisma.member.findUnique({ where: { id } });
-    const validatedData = MemberSchema.partial().parse(req.body);
-    const member = await prisma.member.update({
-      where: { id },
-      data: validatedData
-    });
+    const { beforeMember, member } = await updateMember(req.params.id, req.body);
 
     await createAuditLog({
       operator: req.user,
       actionType: 'MEMBER_UPDATE',
       entityType: 'MEMBER',
-      entityId: id,
+      entityId: parseInt(req.params.id),
       beforeSnapshot: beforeMember,
       afterSnapshot: member,
       req,
@@ -167,32 +105,23 @@ router.put('/:id', authenticate, async (req, res) => {
       errorMessage: error.message,
     });
 
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    logger.error('Error updating member', { id: req.params.id, error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error updating member');
   }
 });
 
-// Delete member
 router.delete('/:id', authenticate, async (req, res) => {
   const startTime = Date.now();
   try {
-    const id = parseInt(req.params.id);
-    const beforeMember = await prisma.member.findUnique({ where: { id } });
-    await prisma.member.delete({
-      where: { id }
-    });
+    const beforeMember = await deleteMember(req.params.id);
 
     await createAuditLog({
       operator: req.user,
       actionType: 'MEMBER_DELETE',
       entityType: 'MEMBER',
-      entityId: id,
+      entityId: parseInt(req.params.id),
       beforeSnapshot: beforeMember,
       req,
-      remark: `删除会员: ${beforeMember?.name || 'ID=' + id}`,
+      remark: `删除会员: ${beforeMember?.name || 'ID=' + req.params.id}`,
       durationMs: Date.now() - startTime,
       resultStatus: 'SUCCESS',
     });
@@ -211,45 +140,28 @@ router.delete('/:id', authenticate, async (req, res) => {
       errorMessage: error.message,
     });
 
-    logger.error('Error deleting member', { id: req.params.id, error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error deleting member');
   }
 });
 
-// Update member points (with transaction recording)
 router.post('/:id/points', authenticate, async (req, res) => {
   const startTime = Date.now();
   try {
-    const id = parseInt(req.params.id);
-    const { points, reasonType, bizOrderNo, bizOrderType, remark } = PointsUpdateSchema.parse(req.body);
-
-    if (points === 0) {
-      return res.status(400).json({ error: 'Points change cannot be zero' });
-    }
-
-    const beforeMember = await prisma.member.findUnique({ where: { id } });
-
-    const transaction = await createTransaction({
-      memberId: id,
-      points,
-      reasonType: reasonType || 'MANUAL_ADJUST',
-      bizOrderNo: bizOrderNo || null,
-      bizOrderType: bizOrderType || null,
-      operatorId: req.user?.id || null,
-      remark: remark || null,
-    });
-
-    const member = await prisma.member.findUnique({ where: { id } });
+    const { beforeMember, member, transaction, pointsAdjusted } = await adjustMemberPoints(
+      req.params.id,
+      req.body,
+      req.user?.id
+    );
 
     await createAuditLog({
       operator: req.user,
       actionType: 'POINTS_ADJUST',
       entityType: 'MEMBER',
-      entityId: id,
+      entityId: parseInt(req.params.id),
       beforeSnapshot: beforeMember,
-      afterSnapshot: { ...member, pointsChange: points },
+      afterSnapshot: { ...member, pointsChange: pointsAdjusted },
       req,
-      remark: `${points > 0 ? '增加' : '扣除'}积分 ${Math.abs(points)} | ${remark || reasonType || 'MANUAL_ADJUST'}`,
+      remark: `${pointsAdjusted > 0 ? '增加' : '扣除'}积分 ${Math.abs(pointsAdjusted)} | ${req.body.remark || req.body.reasonType || 'MANUAL_ADJUST'}`,
       durationMs: Date.now() - startTime,
       resultStatus: 'SUCCESS',
     });
@@ -268,47 +180,28 @@ router.post('/:id/points', authenticate, async (req, res) => {
       errorMessage: error.message,
     });
 
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    if (error.status) {
-      return res.status(error.status).json({ error: error.message });
-    }
-    logger.error('Error updating member points', { id: req.params.id, error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error updating member points');
   }
 });
 
-// Freeze member points
 router.post('/:id/freeze', authenticate, async (req, res) => {
   const startTime = Date.now();
   try {
-    const id = parseInt(req.params.id);
-    const { points, reasonType, bizOrderNo, bizOrderType, remark } = FreezePointsSchema.parse(req.body);
-
-    const beforeMember = await prisma.member.findUnique({ where: { id } });
-
-    const transaction = await createTransaction({
-      memberId: id,
-      points: -points,
-      reasonType: reasonType || 'FREEZE_OP',
-      bizOrderNo: bizOrderNo || null,
-      bizOrderType: bizOrderType || null,
-      operatorId: req.user?.id || null,
-      remark: remark || null,
-    });
-
-    const member = await prisma.member.findUnique({ where: { id } });
+    const { beforeMember, member, transaction, pointsFrozen } = await freezeMemberPoints(
+      req.params.id,
+      req.body,
+      req.user?.id
+    );
 
     await createAuditLog({
       operator: req.user,
       actionType: 'POINTS_FREEZE',
       entityType: 'MEMBER',
-      entityId: id,
+      entityId: parseInt(req.params.id),
       beforeSnapshot: beforeMember,
-      afterSnapshot: { ...member, frozenPointsChange: points },
+      afterSnapshot: { ...member, frozenPointsChange: pointsFrozen },
       req,
-      remark: `冻结积分 ${points} | ${remark || reasonType || 'FREEZE_OP'}`,
+      remark: `冻结积分 ${pointsFrozen} | ${req.body.remark || req.body.reasonType || 'FREEZE_OP'}`,
       durationMs: Date.now() - startTime,
       resultStatus: 'SUCCESS',
     });
@@ -327,47 +220,28 @@ router.post('/:id/freeze', authenticate, async (req, res) => {
       errorMessage: error.message,
     });
 
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    if (error.status) {
-      return res.status(error.status).json({ error: error.message });
-    }
-    logger.error('Error freezing member points', { id: req.params.id, error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error freezing member points');
   }
 });
 
-// Unfreeze member points
 router.post('/:id/unfreeze', authenticate, async (req, res) => {
   const startTime = Date.now();
   try {
-    const id = parseInt(req.params.id);
-    const { points, reasonType, bizOrderNo, bizOrderType, remark } = FreezePointsSchema.parse(req.body);
-
-    const beforeMember = await prisma.member.findUnique({ where: { id } });
-
-    const transaction = await createTransaction({
-      memberId: id,
-      points: points,
-      reasonType: reasonType || 'UNFREEZE_OP',
-      bizOrderNo: bizOrderNo || null,
-      bizOrderType: bizOrderType || null,
-      operatorId: req.user?.id || null,
-      remark: remark || null,
-    });
-
-    const member = await prisma.member.findUnique({ where: { id } });
+    const { beforeMember, member, transaction, pointsUnfrozen } = await unfreezeMemberPoints(
+      req.params.id,
+      req.body,
+      req.user?.id
+    );
 
     await createAuditLog({
       operator: req.user,
       actionType: 'POINTS_UNFREEZE',
       entityType: 'MEMBER',
-      entityId: id,
+      entityId: parseInt(req.params.id),
       beforeSnapshot: beforeMember,
-      afterSnapshot: { ...member, frozenPointsChange: -points },
+      afterSnapshot: { ...member, frozenPointsChange: -pointsUnfrozen },
       req,
-      remark: `解冻积分 ${points} | ${remark || reasonType || 'UNFREEZE_OP'}`,
+      remark: `解冻积分 ${pointsUnfrozen} | ${req.body.remark || req.body.reasonType || 'UNFREEZE_OP'}`,
       durationMs: Date.now() - startTime,
       resultStatus: 'SUCCESS',
     });
@@ -386,61 +260,25 @@ router.post('/:id/unfreeze', authenticate, async (req, res) => {
       errorMessage: error.message,
     });
 
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
-    if (error.status) {
-      return res.status(error.status).json({ error: error.message });
-    }
-    logger.error('Error unfreezing member points', { id: req.params.id, error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error unfreezing member points');
   }
 });
 
-// Get member transactions
 router.get('/:id/transactions', authenticate, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    const { page = 1, pageSize = 20 } = req.query;
-
-    const transactions = await prisma.pointsTransaction.findMany({
-      where: { memberId: id },
-      skip: (parseInt(page) - 1) * parseInt(pageSize),
-      take: parseInt(pageSize),
-      orderBy: { createdAt: 'desc' },
-      include: {
-        operator: { select: { id: true, username: true } },
-        reverseOf: { select: { id: true, serialNo: true, changeType: true, changeValue: true } },
-      },
-    });
-
-    const total = await prisma.pointsTransaction.count({ where: { memberId: id } });
-
-    res.json({
-      list: transactions,
-      total,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
-      totalPages: Math.ceil(total / parseInt(pageSize)),
-    });
+    const result = await getMemberTransactions(req.params.id, req.query);
+    res.json(result);
   } catch (error) {
-    logger.error('Error fetching member transactions', { id: req.params.id, error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error fetching member transactions');
   }
 });
 
-// Get member level benefits
 router.get('/:id/benefits', authenticate, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    const member = await prisma.member.findUnique({ where: { id } });
-    if (!member) return res.status(404).json({ error: '会员不存在' });
-
-    const benefits = await getMemberBenefits(member);
+    const benefits = await getMemberLevelBenefits(req.params.id);
     res.json(benefits);
   } catch (error) {
-    logger.error('Error fetching member benefits', { id: req.params.id, error: error.message });
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(res, error, 'Error fetching member benefits');
   }
 });
 
